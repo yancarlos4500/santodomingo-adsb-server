@@ -4,6 +4,7 @@ import express from "express";
 import { WebSocketServer, WebSocket } from "ws";
 import { AircraftStore } from "./aircraftStore";
 import type { BeastFeeder, RawFeeder, SbsFeeder } from "./feeders";
+import type { ServerConfig } from "./config";
 
 export interface FeederRefs {
   beast: BeastFeeder;
@@ -14,10 +15,15 @@ export interface FeederRefs {
 export function createWebServer(
   store: AircraftStore,
   feeders: FeederRefs,
+  config: ServerConfig,
 ): { server: http.Server; app: express.Express; wss: WebSocketServer } {
   const app = express();
   app.disable("x-powered-by");
   app.use(express.static(path.join(__dirname, "..", "public")));
+
+  app.get("/feed", (_req, res) => {
+    res.sendFile(path.join(__dirname, "..", "public", "feed.html"));
+  });
 
   app.get("/api/aircraft", (_req, res) => {
     res.json({ now: Date.now(), aircraft: store.snapshot() });
@@ -31,6 +37,20 @@ export function createWebServer(
         beast: feeders.beast.stats(),
         raw: feeders.raw.stats(),
         sbs: feeders.sbs.stats(),
+      },
+    });
+  });
+
+  app.get("/api/feed-info", (_req, res) => {
+    res.json({
+      siteName: config.siteName ?? null,
+      beast: config.publicBeast ?? null,
+      raw: config.publicRaw ?? null,
+      sbs: config.publicSbs ?? null,
+      internal: {
+        beastPort: config.beastPort,
+        rawPort: config.rawPort,
+        sbsPort: config.sbsPort,
       },
     });
   });

@@ -11,9 +11,11 @@ A self-hosted ADS-B aggregation server. Feeders (dump1090, readsb, PiAware, tar1
 - Built-in Mode-S / ADS-B decoder for callsign, position (global CPR), altitude, ground speed, track, and vertical rate.
 - Aggregates data from many concurrent feeders and de-duplicates per ICAO24.
 - Web UI at `http://localhost:8080` with a Leaflet map, aircraft sidebar, and live WebSocket updates.
+- Bilingual (English / Spanish) **feeder onboarding page** at `/feed` with copy-pasteable snippets for readsb, adsb.im, and ad-hoc `nc` piping.
 - JSON endpoints:
   - `GET /api/aircraft` — current tracked aircraft.
   - `GET /api/stats` — per-feeder connection and message counters.
+  - `GET /api/feed-info` — the public endpoints shown on `/feed` (host:port strings from env).
 
 ## Install & run
 
@@ -101,6 +103,10 @@ Environment variables (all optional):
 | `ADSB_HTTP_PORT`          | `8080`    | Web UI + JSON + WebSocket port (fallback when `PORT` is unset). |
 | `ADSB_AIRCRAFT_TTL_MS`    | `60000`   | Drop aircraft that haven't been seen in this window. |
 | `ADSB_TICK_MS`            | `1000`    | Prune + broadcast interval.                    |
+| `ADSB_PUBLIC_BEAST`       | *(unset)* | Public `host:port` shown on `/feed` for Beast (e.g. Railway TCP proxy address). |
+| `ADSB_PUBLIC_RAW`         | *(unset)* | Public `host:port` shown on `/feed` for raw AVR. |
+| `ADSB_PUBLIC_SBS`         | *(unset)* | Public `host:port` shown on `/feed` for SBS-1. |
+| `ADSB_SITE_NAME`          | *(unset)* | Friendly site name shown on `/feed` (e.g. `Santo Domingo ADS-B`). |
 
 ## Notes
 

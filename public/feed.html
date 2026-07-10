@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>How to feed / Cómo enviar datos</title>
+    <style>
+      :root {
+        --bg: #0b1220;
+        --panel: #0f1729;
+        --border: #1e2a44;
+        --text: #e6edf7;
+        --muted: #94a3c4;
+        --accent: #7fb3ff;
+        --code-bg: #050a14;
+        --code-fg: #ffd166;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.55;
+      }
+      header {
+        padding: 18px 24px;
+        border-bottom: 1px solid var(--border);
+        background: var(--panel);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      header h1 {
+        margin: 0;
+        font-size: 18px;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+      header .nav {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      header a {
+        color: var(--text);
+        text-decoration: none;
+        border: 1px solid var(--border);
+        padding: 6px 10px;
+        border-radius: 6px;
+        font-size: 13px;
+      }
+      header a:hover { background: #172344; }
+      .lang-toggle {
+        display: inline-flex;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        overflow: hidden;
+      }
+      .lang-toggle button {
+        background: transparent;
+        color: var(--text);
+        border: 0;
+        padding: 6px 12px;
+        cursor: pointer;
+        font-size: 13px;
+      }
+      .lang-toggle button.active {
+        background: var(--accent);
+        color: #0b1220;
+        font-weight: 600;
+      }
+      main {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+      main section {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 18px 22px;
+        margin-bottom: 18px;
+      }
+      main h2 {
+        margin: 0 0 10px;
+        font-size: 16px;
+        color: var(--accent);
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+      }
+      main h3 {
+        margin: 18px 0 6px;
+        font-size: 14px;
+      }
+      main p, main li { color: var(--text); }
+      main .muted { color: var(--muted); font-size: 13px; }
+      pre {
+        background: var(--code-bg);
+        color: var(--code-fg);
+        padding: 12px 14px;
+        border-radius: 6px;
+        overflow-x: auto;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 13px;
+        position: relative;
+      }
+      pre .copy {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        background: #172344;
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        font-size: 11px;
+        padding: 2px 8px;
+        cursor: pointer;
+      }
+      pre .copy:hover { background: #1e2a44; }
+      code.inline {
+        background: var(--code-bg);
+        color: var(--code-fg);
+        padding: 1px 6px;
+        border-radius: 3px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 90%;
+      }
+      .endpoint-grid {
+        display: grid;
+        grid-template-columns: 90px 1fr;
+        gap: 6px 14px;
+        margin: 6px 0 14px;
+      }
+      .endpoint-grid div:nth-child(odd) {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .endpoint-grid div:nth-child(even) {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        color: var(--code-fg);
+      }
+      [data-lang] { display: none; }
+      body[data-active-lang="en"] [data-lang="en"] { display: revert; }
+      body[data-active-lang="es"] [data-lang="es"] { display: revert; }
+    </style>
+  </head>
+  <body data-active-lang="en">
+    <header>
+      <h1 data-lang="en">How to feed the ADS-B server</h1>
+      <h1 data-lang="es">Cómo enviar datos al servidor ADS-B</h1>
+      <div class="nav">
+        <a href="/">
+          <span data-lang="en">Map</span>
+          <span data-lang="es">Mapa</span>
+        </a>
+        <div class="lang-toggle" role="group" aria-label="Language">
+          <button data-set-lang="en" class="active">EN</button>
+          <button data-set-lang="es">ES</button>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section>
+        <h2 data-lang="en">Server addresses</h2>
+        <h2 data-lang="es">Direcciones del servidor</h2>
+
+        <p data-lang="en" id="site-name-en" hidden>
+          You are feeding <b><span id="site-name-en-text"></span></b>.
+        </p>
+        <p data-lang="es" id="site-name-es" hidden>
+          Estás enviando datos a <b><span id="site-name-es-text"></span></b>.
+        </p>
+
+        <p data-lang="en">Point your feeder at whichever endpoint matches its output format. Beast is the most common — use it if you're not sure.</p>
+        <p data-lang="es">Apunta tu feeder al endpoint que corresponda con su formato de salida. Beast es el más común — úsalo si tienes dudas.</p>
+
+        <div class="endpoint-grid">
+          <div>Beast</div><div id="ep-beast">…</div>
+          <div>Raw / AVR</div><div id="ep-raw">…</div>
+          <div>SBS-1</div><div id="ep-sbs">…</div>
+        </div>
+
+        <p class="muted" data-lang="en">The server is anonymous and open — anyone can feed. Your public IP will show up in <a href="/api/stats">/api/stats</a>.</p>
+        <p class="muted" data-lang="es">El servidor es anónimo y abierto — cualquiera puede enviar datos. Tu IP pública aparecerá en <a href="/api/stats">/api/stats</a>.</p>
+      </section>
+
+      <section>
+        <h2 data-lang="en">Option 1 — readsb / dump1090</h2>
+        <h2 data-lang="es">Opción 1 — readsb / dump1090</h2>
+
+        <p data-lang="en">If you already run <b>readsb</b> or <b>dump1090-fa</b> on a Raspberry Pi with an SDR dongle, add one <code class="inline">--net-connector</code> line pointing at the Beast port.</p>
+        <p data-lang="es">Si ya usas <b>readsb</b> o <b>dump1090-fa</b> en una Raspberry Pi con un dongle SDR, añade una línea <code class="inline">--net-connector</code> apuntando al puerto Beast.</p>
+
+        <pre data-tpl="readsb"><code>readsb --net --net-connector <span data-endpoint="beast-parts"></span>,beast_reduce_out</code><button class="copy">copy</button></pre>
+
+        <p data-lang="en">Or, if you edit <code class="inline">/etc/default/readsb</code> directly, append to <code class="inline">NET_OPTIONS</code>:</p>
+        <p data-lang="es">O, si editas <code class="inline">/etc/default/readsb</code> directamente, añade a <code class="inline">NET_OPTIONS</code>:</p>
+
+        <pre data-tpl="readsb-config"><code>--net-connector=<span data-endpoint="beast-parts"></span>,beast_reduce_out</code><button class="copy">copy</button></pre>
+
+        <p class="muted" data-lang="en">Prefer <code class="inline">beast_reduce_out</code> over <code class="inline">beast_out</code>: it rate-limits the stream to what matters and saves bandwidth.</p>
+        <p class="muted" data-lang="es">Usa <code class="inline">beast_reduce_out</code> en vez de <code class="inline">beast_out</code>: limita el ancho de banda enviando solo lo esencial.</p>
+      </section>
+
+      <section>
+        <h2 data-lang="en">Option 2 — adsb.im / Ultrafeeder</h2>
+        <h2 data-lang="es">Opción 2 — adsb.im / Ultrafeeder</h2>
+
+        <p data-lang="en">In the adsb.im web UI, open <b>Setup → Ultrafeeder / Other Aggregators</b> and add a custom net-connector:</p>
+        <p data-lang="es">En la interfaz web de adsb.im, abre <b>Setup → Ultrafeeder / Other Aggregators</b> y añade un net-connector personalizado:</p>
+
+        <pre data-tpl="adsbim"><code><span data-endpoint="beast-parts"></span>,beast_reduce_out</code><button class="copy">copy</button></pre>
+
+        <p data-lang="en">Save and let Ultrafeeder restart. It will connect on its own from then on.</p>
+        <p data-lang="es">Guarda y deja que Ultrafeeder se reinicie. A partir de ahí se conectará solo.</p>
+      </section>
+
+      <section>
+        <h2 data-lang="en">Option 3 — one-off from any Linux/Mac shell</h2>
+        <h2 data-lang="es">Opción 3 — envío puntual desde cualquier shell Linux/Mac</h2>
+
+        <p data-lang="en">If you already have a local dump1090 stream you want to test-forward, pipe it through <code class="inline">nc</code>:</p>
+        <p data-lang="es">Si ya tienes un stream local de dump1090 y quieres probar reenviarlo, canalízalo por <code class="inline">nc</code>:</p>
+
+        <pre data-tpl="nc-beast"><code>nc localhost 30005 | nc <span data-endpoint="beast-parts-space"></span></code><button class="copy">copy</button></pre>
+
+        <p data-lang="en">Or SBS-1 (BaseStation) CSV:</p>
+        <p data-lang="es">O SBS-1 (BaseStation) CSV:</p>
+
+        <pre data-tpl="nc-sbs"><code>nc localhost 30003 | nc <span data-endpoint="sbs-parts-space"></span></code><button class="copy">copy</button></pre>
+      </section>
+
+      <section>
+        <h2 data-lang="en">Verify it worked</h2>
+        <h2 data-lang="es">Verifica que funciona</h2>
+
+        <p data-lang="en">Check the stats endpoint — you should see <code class="inline">connections: 1</code> (or more) for the port you're feeding, and <code class="inline">totalFrames</code> climbing:</p>
+        <p data-lang="es">Consulta el endpoint de estadísticas — deberías ver <code class="inline">connections: 1</code> (o más) para el puerto que estás alimentando y <code class="inline">totalFrames</code> subiendo:</p>
+
+        <pre><code>curl <span data-endpoint="http">https://this-server</span>/api/stats</code><button class="copy">copy</button></pre>
+
+        <p data-lang="en">Then open the <a href="/">map</a> — within a few seconds your aircraft should appear.</p>
+        <p data-lang="es">Luego abre el <a href="/">mapa</a> — en pocos segundos tus aeronaves deberían aparecer.</p>
+      </section>
+
+      <section>
+        <h2 data-lang="en">Troubleshooting</h2>
+        <h2 data-lang="es">Solución de problemas</h2>
+
+        <ul data-lang="en">
+          <li><b>Nothing shows up.</b> Confirm your feeder is producing frames locally (<code class="inline">nc localhost 30005 | xxd | head</code>). If that's empty, fix the SDR side first.</li>
+          <li><b>Connection refused.</b> Double-check the host and port above; your firewall or ISP may block outbound custom TCP ports.</li>
+          <li><b>Aircraft on the sidebar but no map markers.</b> Position needs an even+odd CPR frame pair within ~10 s — give it a few seconds after the aircraft is first seen.</li>
+          <li><b>You want a custom name.</b> There's no auth right now — feeders are identified by IP. Ping the operator if you want a nickname added.</li>
+        </ul>
+        <ul data-lang="es">
+          <li><b>No aparece nada.</b> Confirma que tu feeder está generando frames localmente (<code class="inline">nc localhost 30005 | xxd | head</code>). Si sale vacío, arregla primero el lado del SDR.</li>
+          <li><b>Connection refused.</b> Verifica el host y el puerto; tu firewall o tu ISP pueden bloquear puertos TCP salientes personalizados.</li>
+          <li><b>Aeronaves en la barra lateral pero sin marcadores.</b> La posición requiere un par de frames CPR par+impar en ~10 s — espera unos segundos tras la primera detección.</li>
+          <li><b>Quieres un nombre personalizado.</b> No hay autenticación actualmente — los feeders se identifican por IP. Contacta al operador si quieres un alias.</li>
+        </ul>
+      </section>
+    </main>
+
+    <script>
+      const PLACEHOLDER = "<your-server-host:port>";
+
+      function parseHostPort(s) {
+        if (!s) return { host: null, port: null };
+        const m = /^([^:]+):(\d+)$/.exec(s);
+        return m ? { host: m[1], port: m[2] } : { host: s, port: null };
+      }
+
+      function applyEndpoints(info) {
+        const beast = info.beast || PLACEHOLDER;
+        const raw = info.raw || PLACEHOLDER;
+        const sbs = info.sbs || PLACEHOLDER;
+
+        document.getElementById("ep-beast").textContent = beast;
+        document.getElementById("ep-raw").textContent = raw;
+        document.getElementById("ep-sbs").textContent = sbs;
+
+        const setText = (attr, value) => {
+          document.querySelectorAll(`[data-endpoint="${attr}"]`).forEach((el) => {
+            el.textContent = value;
+          });
+        };
+
+        const bp = parseHostPort(info.beast);
+        const sp = parseHostPort(info.sbs);
+        setText("beast-parts", bp.host && bp.port ? `${bp.host},${bp.port}` : "<your-host>,<port>");
+        setText("beast-parts-space", bp.host && bp.port ? `${bp.host} ${bp.port}` : "<your-host> <port>");
+        setText("sbs-parts-space", sp.host && sp.port ? `${sp.host} ${sp.port}` : "<your-host> <port>");
+        setText("http", location.origin);
+
+        if (info.siteName) {
+          const enP = document.getElementById("site-name-en");
+          const esP = document.getElementById("site-name-es");
+          document.getElementById("site-name-en-text").textContent = info.siteName;
+          document.getElementById("site-name-es-text").textContent = info.siteName;
+          enP.hidden = false;
+          esP.hidden = false;
+        }
+      }
+
+      async function loadInfo() {
+        try {
+          const r = await fetch("/api/feed-info");
+          if (!r.ok) throw new Error(r.status);
+          applyEndpoints(await r.json());
+        } catch {
+          applyEndpoints({ beast: null, raw: null, sbs: null });
+        }
+      }
+
+      function setLang(lang) {
+        document.body.dataset.activeLang = lang;
+        document.querySelectorAll(".lang-toggle button").forEach((b) => {
+          b.classList.toggle("active", b.dataset.setLang === lang);
+        });
+        try { localStorage.setItem("adsb-lang", lang); } catch {}
+      }
+
+      document.querySelectorAll(".lang-toggle button").forEach((b) => {
+        b.addEventListener("click", () => setLang(b.dataset.setLang));
+      });
+
+      document.addEventListener("click", (e) => {
+        const btn = e.target.closest(".copy");
+        if (!btn) return;
+        const code = btn.parentElement.querySelector("code");
+        if (!code) return;
+        navigator.clipboard.writeText(code.textContent.trim()).then(() => {
+          const prev = btn.textContent;
+          btn.textContent = "copied!";
+          setTimeout(() => (btn.textContent = prev), 1200);
+        });
+      });
+
+      const stored = (() => {
+        try { return localStorage.getItem("adsb-lang"); } catch { return null; }
+      })();
+      const initial = stored || (navigator.language.toLowerCase().startsWith("es") ? "es" : "en");
+      setLang(initial);
+      loadInfo();
+    </script>
+  </body>
+</html>

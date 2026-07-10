@@ -13,6 +13,14 @@ export interface ServerConfig {
   aircraftTtlMs: number;
   /** Interval for pruning stale aircraft and broadcasting snapshots. */
   tickIntervalMs: number;
+  /** Optional public `host:port` shown on the /feed page for Beast feeders. */
+  publicBeast?: string;
+  /** Optional public `host:port` shown on the /feed page for raw AVR feeders. */
+  publicRaw?: string;
+  /** Optional public `host:port` shown on the /feed page for SBS feeders. */
+  publicSbs?: string;
+  /** Optional operator/site name to display on the /feed page. */
+  siteName?: string;
 }
 
 function intFromEnv(name: string, fallback: number): number {
@@ -20,6 +28,11 @@ function intFromEnv(name: string, fallback: number): number {
   if (!v) return fallback;
   const n = Number.parseInt(v, 10);
   return Number.isFinite(n) ? n : fallback;
+}
+
+function stringOrUndef(name: string): string | undefined {
+  const v = process.env[name];
+  return v && v.length > 0 ? v : undefined;
 }
 
 export function loadConfig(): ServerConfig {
@@ -32,5 +45,9 @@ export function loadConfig(): ServerConfig {
     host: process.env.ADSB_HOST ?? "0.0.0.0",
     aircraftTtlMs: intFromEnv("ADSB_AIRCRAFT_TTL_MS", 60_000),
     tickIntervalMs: intFromEnv("ADSB_TICK_MS", 1_000),
+    publicBeast: stringOrUndef("ADSB_PUBLIC_BEAST"),
+    publicRaw: stringOrUndef("ADSB_PUBLIC_RAW"),
+    publicSbs: stringOrUndef("ADSB_PUBLIC_SBS"),
+    siteName: stringOrUndef("ADSB_SITE_NAME"),
   };
 }

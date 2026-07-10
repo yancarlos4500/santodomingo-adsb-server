@@ -13,7 +13,7 @@ async function main() {
   const raw = new RawFeeder(store, decoder);
   const sbs = new SbsFeeder(store, decoder);
 
-  const { server, wss } = createWebServer(store, { beast, raw, sbs });
+  const { server, wss } = createWebServer(store, { beast, raw, sbs }, cfg);
 
   await Promise.all([
     beast.listen(cfg.beastPort, cfg.host),
