@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ADS-B Server</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        background: #0b1220;
+        color: #e6edf7;
+      }
+      #app {
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        height: 100vh;
+      }
+      #sidebar {
+        overflow: auto;
+        border-right: 1px solid #1e2a44;
+        background: #0f1729;
+      }
+      #sidebar header {
+        padding: 12px 14px;
+        border-bottom: 1px solid #1e2a44;
+      }
+      #sidebar header h1 {
+        margin: 0 0 4px;
+        font-size: 15px;
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+        color: #7fb3ff;
+      }
+      #sidebar header .meta {
+        font-size: 12px;
+        color: #94a3c4;
+      }
+      #feeders,
+      #aircraft-list {
+        padding: 8px 0;
+      }
+      .section-title {
+        padding: 6px 14px;
+        font-size: 11px;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        color: #6f81ad;
+      }
+      .feeder-row,
+      .ac-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 4px 14px;
+        font-size: 12px;
+      }
+      .ac-row {
+        cursor: pointer;
+      }
+      .ac-row:hover {
+        background: #172344;
+      }
+      .ac-row .cs {
+        color: #f8fafc;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      .ac-row .alt {
+        color: #94a3c4;
+      }
+      #map {
+        height: 100vh;
+        width: 100%;
+      }
+      .plane-icon {
+        color: #ffd166;
+        text-shadow: 0 0 4px #000;
+        font-size: 18px;
+        line-height: 1;
+      }
+      .plane-icon.stale {
+        color: #64748b;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <aside id="sidebar">
+        <header>
+          <h1>ADS-B Server</h1>
+          <div class="meta">
+            <span id="ac-count">0</span> aircraft ·
+            <span id="ws-state">connecting…</span>
+          </div>
+        </header>
+        <div class="section-title">Feeders</div>
+        <div id="feeders"></div>
+        <div class="section-title">Aircraft</div>
+        <div id="aircraft-list"></div>
+      </aside>
+      <div id="map"></div>
+    </div>
+
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <script>
+      const map = L.map("map", {
+        center: [20, 0],
+        zoom: 3,
+        worldCopyJump: true,
+      });
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 18,
+        attribution: "© OpenStreetMap",
+      }).addTo(map);
+
+      const markers = new Map(); // icao -> L.marker
+      const listEl = document.getElementById("aircraft-list");
+      const countEl = document.getElementById("ac-count");
+      const feedersEl = document.getElementById("feeders");
+      const wsStateEl = document.getElementById("ws-state");
+
+      function iconFor(ac) {
+        const rot = Math.round(ac.trackDeg ?? 0);
+        const stale = Date.now() - ac.lastSeen > 15000 ? "stale" : "";
+        return L.divIcon({
+          className: "",
+          html: `<div class="plane-icon ${stale}" style="transform: rotate(${rot}deg)">✈</div>`,
+          iconSize: [18, 18],
+          iconAnchor: [9, 9],
+        });
+      }
+
+      function popupFor(ac) {
+        const parts = [
+          `<b>${ac.callsign || ac.icao.toUpperCase()}</b>`,
+          `ICAO ${ac.icao.toUpperCase()}`,
+        ];
+        if (ac.altitudeFt !== undefined) parts.push(`Alt ${ac.altitudeFt} ft`);
+        if (ac.groundSpeedKt !== undefined) parts.push(`GS ${ac.groundSpeedKt} kt`);
+        if (ac.trackDeg !== undefined) parts.push(`Track ${ac.trackDeg}°`);
+        if (ac.verticalRateFpm !== undefined) parts.push(`VR ${ac.verticalRateFpm} fpm`);
+        if (ac.squawk) parts.push(`Sq ${ac.squawk}`);
+        parts.push(`Msgs ${ac.messages}`);
+        return parts.join("<br>");
+      }
+
+      function updateAircraft(list) {
+        const seen = new Set();
+        for (const ac of list) {
+          seen.add(ac.icao);
+          if (ac.lat === undefined || ac.lon === undefined) continue;
+          const latlng = [ac.lat, ac.lon];
+          let m = markers.get(ac.icao);
+          if (!m) {
+            m = L.marker(latlng, { icon: iconFor(ac) }).addTo(map);
+            markers.set(ac.icao, m);
+          } else {
+            m.setLatLng(latlng);
+            m.setIcon(iconFor(ac));
+          }
+          m.bindPopup(popupFor(ac));
+        }
+        for (const [icao, m] of markers) {
+          if (!seen.has(icao)) {
+            map.removeLayer(m);
+            markers.delete(icao);
+          }
+        }
+
+        countEl.textContent = list.length;
+        listEl.innerHTML = list
+          .slice()
+          .sort((a, b) => (a.callsign || a.icao).localeCompare(b.callsign || b.icao))
+          .map(
+            (ac) => `
+            <div class="ac-row" data-icao="${ac.icao}">
+              <span class="cs">${ac.callsign || ac.icao.toUpperCase()}</span>
+              <span class="alt">${ac.altitudeFt ?? "—"} ft</span>
+            </div>`,
+          )
+          .join("");
+      }
+
+      listEl.addEventListener("click", (e) => {
+        const row = e.target.closest(".ac-row");
+        if (!row) return;
+        const icao = row.dataset.icao;
+        const m = markers.get(icao);
+        if (m) {
+          map.setView(m.getLatLng(), Math.max(map.getZoom(), 8));
+          m.openPopup();
+        }
+      });
+
+      async function refreshStats() {
+        try {
+          const r = await fetch("/api/stats");
+          const s = await r.json();
+          feedersEl.innerHTML = ["beast", "raw", "sbs"]
+            .map((k) => {
+              const f = s.feeders[k];
+              return `<div class="feeder-row"><span>${k}</span><span>${f.connections} conn · ${f.totalFrames} msgs</span></div>`;
+            })
+            .join("");
+        } catch {
+          /* transient */
+        }
+      }
+
+      function connect() {
+        const proto = location.protocol === "https:" ? "wss:" : "ws:";
+        const ws = new WebSocket(`${proto}//${location.host}/ws`);
+        ws.onopen = () => (wsStateEl.textContent = "live");
+        ws.onclose = () => {
+          wsStateEl.textContent = "disconnected — retrying…";
+          setTimeout(connect, 2000);
+        };
+        ws.onmessage = (ev) => {
+          try {
+            const msg = JSON.parse(ev.data);
+            if (msg.type === "snapshot") updateAircraft(msg.aircraft);
+          } catch {
+            /* ignore */
+          }
+        };
+      }
+
+      connect();
+      refreshStats();
+      setInterval(refreshStats, 3000);
+    </script>
+  </body>
+</html>
