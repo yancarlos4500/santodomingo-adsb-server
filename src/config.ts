@@ -36,12 +36,28 @@ function stringOrUndef(name: string): string | undefined {
 }
 
 export function loadConfig(): ServerConfig {
+  const beastPort = intFromEnv("ADSB_BEAST_PORT", 30005);
+  const rawPort = intFromEnv("ADSB_RAW_PORT", 30002);
+  const sbsPort = intFromEnv("ADSB_SBS_PORT", 30003);
+  // Railway (and most PaaS) inject PORT; fall back to ADSB_HTTP_PORT, then 8080.
+  let httpPort = intFromEnv("PORT", intFromEnv("ADSB_HTTP_PORT", 8080));
+
+  // A misconfigured PORT variable that collides with a feeder port causes an
+  // EADDRINUSE crash loop before the healthcheck can ever pass — fall back
+  // to a safe default instead of letting the process die on startup.
+  if (httpPort === beastPort || httpPort === rawPort || httpPort === sbsPort) {
+    console.error(
+      `[config] PORT=${httpPort} collides with a feeder port (beast=${beastPort}, raw=${rawPort}, sbs=${sbsPort}); ` +
+        `falling back to 8080. Fix the PORT variable in your deploy environment.`,
+    );
+    httpPort = 8080;
+  }
+
   return {
-    beastPort: intFromEnv("ADSB_BEAST_PORT", 30005),
-    rawPort: intFromEnv("ADSB_RAW_PORT", 30002),
-    sbsPort: intFromEnv("ADSB_SBS_PORT", 30003),
-    // Railway (and most PaaS) inject PORT; fall back to ADSB_HTTP_PORT, then 8080.
-    httpPort: intFromEnv("PORT", intFromEnv("ADSB_HTTP_PORT", 8080)),
+    beastPort,
+    rawPort,
+    sbsPort,
+    httpPort,
     host: process.env.ADSB_HOST ?? "0.0.0.0",
     aircraftTtlMs: intFromEnv("ADSB_AIRCRAFT_TTL_MS", 60_000),
     tickIntervalMs: intFromEnv("ADSB_TICK_MS", 1_000),
