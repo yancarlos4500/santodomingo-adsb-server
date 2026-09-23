@@ -1,0 +1,192 @@
+/* Shared "ATC scope" theme for the ADS-B server web UI. */
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
+
+:root {
+  --bg: #060a12;
+  --bg-alt: #0a1120;
+  --panel: #0d1526;
+  --panel-alt: #101c33;
+  --border: #1c2c4a;
+  --border-soft: #16223a;
+  --text: #dbe6f7;
+  --muted: #7c8db1;
+  --accent: #34e2b0;
+  --accent-dim: #1c8f74;
+  --accent2: #f5a623;
+  --danger: #ff5d6c;
+  --sky: #38bdf8;
+  --violet: #b18cff;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --display: "Space Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--display);
+}
+
+/* Faint radar-ring texture used behind panels. */
+.scope-grid {
+  background-image:
+    radial-gradient(circle at 15% 20%, rgba(52, 226, 176, 0.06), transparent 45%),
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: auto, 28px 28px, 28px 28px;
+}
+
+::selection {
+  background: var(--accent);
+  color: #04140f;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-alt);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-dim);
+}
+
+a {
+  color: var(--accent);
+}
+
+/* Brand lockup: spinning radar-sweep mark + wordmark. */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.brand .mark {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--accent-dim);
+  background: radial-gradient(circle at 50% 50%, rgba(52, 226, 176, 0.15), transparent 70%);
+  overflow: hidden;
+  flex: none;
+}
+.brand .mark::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: conic-gradient(from 0deg, rgba(52, 226, 176, 0.85), transparent 35%);
+  animation: sweep 3.2s linear infinite;
+}
+.brand .mark::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--bg);
+  box-shadow: inset 0 0 0 1px rgba(52, 226, 176, 0.25);
+}
+.brand .wordmark {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.4px;
+  color: var(--text);
+  white-space: nowrap;
+}
+.brand .wordmark small {
+  display: block;
+  font-family: var(--mono);
+  font-weight: 400;
+  font-size: 10px;
+  letter-spacing: 1.2px;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+@keyframes sweep {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Status pill with a pulsing dot, used for connection/live indicators. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel-alt);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+.pill .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.pill.live {
+  color: var(--accent);
+  border-color: var(--accent-dim);
+}
+.pill.live .dot {
+  background: var(--accent);
+  box-shadow: 0 0 0 0 rgba(52, 226, 176, 0.6);
+  animation: pulse 1.6s ease-out infinite;
+}
+.pill.down {
+  color: var(--danger);
+  border-color: #4a1f28;
+}
+.pill.down .dot {
+  background: var(--danger);
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(52, 226, 176, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(52, 226, 176, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(52, 226, 176, 0);
+  }
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--panel-alt);
+  color: var(--text);
+  text-decoration: none;
+  font-size: 12.5px;
+  font-family: var(--display);
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.btn:hover {
+  border-color: var(--accent-dim);
+  color: var(--accent);
+  background: #0f2019;
+}

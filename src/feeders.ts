@@ -19,6 +19,7 @@ abstract class FeederListener {
   protected readonly clients = new Set<net.Socket>();
   protected framesTotal = 0;
   protected bytesTotal = 0;
+  private warnedNoFrames = false;
 
   constructor(
     readonly name: string,
@@ -60,6 +61,20 @@ abstract class FeederListener {
   }
 
   protected abstract handleSocket(socket: net.Socket): void;
+
+  /**
+   * Call after processing each chunk. Warns once if a lot of bytes have
+   * arrived without a single valid frame being decoded — usually means
+   * the feeder is sending the wrong format for this port.
+   */
+  protected maybeWarnNoFrames(threshold = 1_000_000): void {
+    if (this.warnedNoFrames || this.framesTotal > 0 || this.bytesTotal <= threshold) return;
+    this.warnedNoFrames = true;
+    console.warn(
+      `[${this.name}] received ${this.bytesTotal} bytes but decoded 0 frames — ` +
+        `the feeder is likely using the wrong format/port for this endpoint.`,
+    );
+  }
 
   protected apply(msg: DecodedMessage, source: string) {
     const upd: AircraftUpdate = { icao: msg.icao, source };
@@ -116,6 +131,7 @@ export class BeastFeeder extends FeederListener {
       this.bytesTotal += chunk.length;
       buf = buf.length === 0 ? chunk : Buffer.concat([buf, chunk]);
       buf = this.drain(buf, peer);
+      this.maybeWarnNoFrames();
     });
   }
 
@@ -189,6 +205,7 @@ export class RawFeeder extends FeederListener {
       const lines = leftover.split(/\r?\n/);
       leftover = lines.pop() ?? "";
       for (const line of lines) this.handleLine(line.trim(), peer);
+      this.maybeWarnNoFrames();
     });
   }
 
@@ -240,6 +257,7 @@ export class SbsFeeder extends FeederListener {
       const lines = leftover.split(/\r?\n/);
       leftover = lines.pop() ?? "";
       for (const line of lines) this.handleLine(line, peer);
+      this.maybeWarnNoFrames();
     });
   }
 

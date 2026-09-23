@@ -4,27 +4,17 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>How to feed / Cómo enviar datos</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23060a12' stroke='%2334e2b0' stroke-width='2'/%3E%3Ccircle cx='16' cy='16' r='2' fill='%2334e2b0'/%3E%3Cpath d='M16 16 L16 3 A13 13 0 0 1 27 10 Z' fill='%2334e2b0' fill-opacity='0.35'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="/theme.css" />
     <style>
-      :root {
-        --bg: #0b1220;
-        --panel: #0f1729;
-        --border: #1e2a44;
-        --text: #e6edf7;
-        --muted: #94a3c4;
-        --accent: #7fb3ff;
-        --code-bg: #050a14;
-        --code-fg: #ffd166;
-      }
-      * { box-sizing: border-box; }
       body {
-        margin: 0;
-        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-        background: var(--bg);
-        color: var(--text);
-        line-height: 1.55;
+        line-height: 1.6;
       }
       header {
-        padding: 18px 24px;
+        padding: 16px 24px;
         border-bottom: 1px solid var(--border);
         background: var(--panel);
         display: flex;
@@ -32,130 +22,214 @@
         justify-content: space-between;
         gap: 12px;
         flex-wrap: wrap;
-      }
-      header h1 {
-        margin: 0;
-        font-size: 18px;
-        letter-spacing: 0.5px;
-        text-transform: uppercase;
-        color: var(--accent);
+        position: sticky;
+        top: 0;
+        z-index: 10;
       }
       header .nav {
         display: flex;
         gap: 8px;
         align-items: center;
       }
-      header a {
-        color: var(--text);
-        text-decoration: none;
-        border: 1px solid var(--border);
-        padding: 6px 10px;
-        border-radius: 6px;
-        font-size: 13px;
-      }
-      header a:hover { background: #172344; }
       .lang-toggle {
         display: inline-flex;
         border: 1px solid var(--border);
-        border-radius: 6px;
+        border-radius: 7px;
         overflow: hidden;
       }
       .lang-toggle button {
         background: transparent;
         color: var(--text);
         border: 0;
-        padding: 6px 12px;
+        padding: 7px 12px;
         cursor: pointer;
-        font-size: 13px;
+        font-size: 12.5px;
+        font-family: var(--display);
+        font-weight: 500;
       }
       .lang-toggle button.active {
         background: var(--accent);
-        color: #0b1220;
-        font-weight: 600;
+        color: #04140f;
+        font-weight: 700;
       }
       main {
-        max-width: 900px;
+        max-width: 880px;
         margin: 0 auto;
-        padding: 24px;
+        padding: 28px 20px 60px;
       }
       main section {
+        position: relative;
         background: var(--panel);
         border: 1px solid var(--border);
+        border-left: 3px solid var(--accent-dim);
         border-radius: 8px;
-        padding: 18px 22px;
+        padding: 20px 24px;
         margin-bottom: 18px;
       }
-      main h2 {
-        margin: 0 0 10px;
-        font-size: 16px;
+      main .section-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+      main .section-head .badge {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 7px;
+        background: var(--panel-alt);
+        border: 1px solid var(--border);
         color: var(--accent);
-        text-transform: uppercase;
-        letter-spacing: 0.4px;
+        flex: none;
+        font-size: 14px;
+      }
+      main h2 {
+        margin: 0;
+        font-family: var(--display);
+        font-size: 15.5px;
+        font-weight: 700;
+        color: var(--text);
+        letter-spacing: 0.2px;
       }
       main h3 {
         margin: 18px 0 6px;
-        font-size: 14px;
+        font-size: 13.5px;
+        font-family: var(--display);
+        color: var(--accent2);
       }
-      main p, main li { color: var(--text); }
-      main .muted { color: var(--muted); font-size: 13px; }
+      main p,
+      main li {
+        color: var(--text);
+        font-size: 13.5px;
+      }
+      main .muted {
+        color: var(--muted);
+        font-size: 12.5px;
+      }
+      /* Fake terminal window chrome around code blocks. */
+      .term {
+        background: #050a13;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        overflow: hidden;
+        margin: 6px 0 14px;
+      }
+      .term .term-bar {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 10px;
+        background: var(--panel-alt);
+        border-bottom: 1px solid var(--border);
+      }
+      .term .term-bar .dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+      }
+      .term .term-bar .dot:nth-child(1) {
+        background: #ff5d6c;
+      }
+      .term .term-bar .dot:nth-child(2) {
+        background: #f5a623;
+      }
+      .term .term-bar .dot:nth-child(3) {
+        background: var(--accent);
+      }
       pre {
-        background: var(--code-bg);
-        color: var(--code-fg);
+        margin: 0;
+        background: transparent;
+        color: #ffd166;
         padding: 12px 14px;
-        border-radius: 6px;
         overflow-x: auto;
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        font-size: 13px;
+        font-family: var(--mono);
+        font-size: 12.5px;
         position: relative;
       }
       pre .copy {
         position: absolute;
-        top: 8px;
+        top: 6px;
         right: 8px;
-        background: #172344;
+        background: var(--panel-alt);
         color: var(--text);
         border: 1px solid var(--border);
-        border-radius: 4px;
-        font-size: 11px;
-        padding: 2px 8px;
+        border-radius: 5px;
+        font-size: 10.5px;
+        font-family: var(--display);
+        padding: 3px 8px;
         cursor: pointer;
       }
-      pre .copy:hover { background: #1e2a44; }
+      pre .copy:hover {
+        border-color: var(--accent-dim);
+        color: var(--accent);
+      }
       code.inline {
-        background: var(--code-bg);
-        color: var(--code-fg);
+        background: #050a13;
+        color: #ffd166;
         padding: 1px 6px;
-        border-radius: 3px;
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        border-radius: 4px;
+        font-family: var(--mono);
         font-size: 90%;
+        border: 1px solid var(--border-soft);
       }
       .endpoint-grid {
         display: grid;
-        grid-template-columns: 90px 1fr;
-        gap: 6px 14px;
-        margin: 6px 0 14px;
+        grid-template-columns: 100px 1fr;
+        gap: 8px 14px;
+        margin: 10px 0 16px;
+        padding: 12px 14px;
+        background: var(--panel-alt);
+        border: 1px solid var(--border-soft);
+        border-radius: 7px;
       }
       .endpoint-grid div:nth-child(odd) {
         color: var(--muted);
-        font-size: 13px;
+        font-size: 12.5px;
+        align-self: center;
       }
       .endpoint-grid div:nth-child(even) {
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        color: var(--code-fg);
+        font-family: var(--mono);
+        color: var(--accent);
+        font-size: 13px;
       }
-      [data-lang] { display: none; }
-      body[data-active-lang="en"] [data-lang="en"] { display: revert; }
-      body[data-active-lang="es"] [data-lang="es"] { display: revert; }
+      ul {
+        padding-left: 20px;
+        margin: 8px 0;
+      }
+      li {
+        margin: 4px 0;
+      }
+      li b {
+        color: var(--sky);
+      }
+      [data-lang] {
+        display: none;
+      }
+      body[data-active-lang="en"] [data-lang="en"] {
+        display: revert;
+      }
+      body[data-active-lang="es"] [data-lang="es"] {
+        display: revert;
+      }
     </style>
   </head>
   <body data-active-lang="en">
     <header>
-      <h1 data-lang="en">How to feed the ADS-B server</h1>
-      <h1 data-lang="es">Cómo enviar datos al servidor ADS-B</h1>
+      <div class="brand">
+        <span class="mark"></span>
+        <span class="wordmark">
+          <span data-lang="en">Feed this scope</span>
+          <span data-lang="es">Alimenta este radar</span>
+          <small data-lang="en">setup guide</small>
+          <small data-lang="es">guía de configuración</small>
+        </span>
+      </div>
       <div class="nav">
-        <a href="/">
-          <span data-lang="en">Map</span>
-          <span data-lang="es">Mapa</span>
+        <a href="/" class="btn">
+          <span data-lang="en">← Map</span>
+          <span data-lang="es">← Mapa</span>
         </a>
         <div class="lang-toggle" role="group" aria-label="Language">
           <button data-set-lang="en" class="active">EN</button>
@@ -166,8 +240,11 @@
 
     <main>
       <section>
-        <h2 data-lang="en">Server addresses</h2>
-        <h2 data-lang="es">Direcciones del servidor</h2>
+        <div class="section-head">
+          <span class="badge">📶</span>
+          <h2 data-lang="en">Server addresses</h2>
+          <h2 data-lang="es">Direcciones del servidor</h2>
+        </div>
 
         <p data-lang="en" id="site-name-en" hidden>
           You are feeding <b><span id="site-name-en-text"></span></b>.
@@ -190,67 +267,100 @@
       </section>
 
       <section>
-        <h2 data-lang="en">Option 1 — readsb / dump1090</h2>
-        <h2 data-lang="es">Opción 1 — readsb / dump1090</h2>
+        <div class="section-head">
+          <span class="badge">①</span>
+          <h2 data-lang="en">Option 1 — readsb / dump1090</h2>
+          <h2 data-lang="es">Opción 1 — readsb / dump1090</h2>
+        </div>
 
         <p data-lang="en">If you already run <b>readsb</b> or <b>dump1090-fa</b> on a Raspberry Pi with an SDR dongle, add one <code class="inline">--net-connector</code> line pointing at the Beast port.</p>
         <p data-lang="es">Si ya usas <b>readsb</b> o <b>dump1090-fa</b> en una Raspberry Pi con un dongle SDR, añade una línea <code class="inline">--net-connector</code> apuntando al puerto Beast.</p>
 
-        <pre data-tpl="readsb"><code>readsb --net --net-connector <span data-endpoint="beast-parts"></span>,beast_reduce_out</code><button class="copy">copy</button></pre>
+        <div class="term">
+          <div class="term-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+          <pre data-tpl="readsb"><code>readsb --net --net-connector <span data-endpoint="beast-parts"></span>,beast_reduce_out</code><button class="copy">copy</button></pre>
+        </div>
 
         <p data-lang="en">Or, if you edit <code class="inline">/etc/default/readsb</code> directly, append to <code class="inline">NET_OPTIONS</code>:</p>
         <p data-lang="es">O, si editas <code class="inline">/etc/default/readsb</code> directamente, añade a <code class="inline">NET_OPTIONS</code>:</p>
 
-        <pre data-tpl="readsb-config"><code>--net-connector=<span data-endpoint="beast-parts"></span>,beast_reduce_out</code><button class="copy">copy</button></pre>
+        <div class="term">
+          <div class="term-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+          <pre data-tpl="readsb-config"><code>--net-connector=<span data-endpoint="beast-parts"></span>,beast_reduce_out</code><button class="copy">copy</button></pre>
+        </div>
 
         <p class="muted" data-lang="en">Prefer <code class="inline">beast_reduce_out</code> over <code class="inline">beast_out</code>: it rate-limits the stream to what matters and saves bandwidth.</p>
         <p class="muted" data-lang="es">Usa <code class="inline">beast_reduce_out</code> en vez de <code class="inline">beast_out</code>: limita el ancho de banda enviando solo lo esencial.</p>
       </section>
 
       <section>
-        <h2 data-lang="en">Option 2 — adsb.im / Ultrafeeder</h2>
-        <h2 data-lang="es">Opción 2 — adsb.im / Ultrafeeder</h2>
+        <div class="section-head">
+          <span class="badge">②</span>
+          <h2 data-lang="en">Option 2 — adsb.im / Ultrafeeder</h2>
+          <h2 data-lang="es">Opción 2 — adsb.im / Ultrafeeder</h2>
+        </div>
 
         <p data-lang="en">In the adsb.im web UI, open <b>Setup → Ultrafeeder / Other Aggregators</b> and add a custom net-connector:</p>
         <p data-lang="es">En la interfaz web de adsb.im, abre <b>Setup → Ultrafeeder / Other Aggregators</b> y añade un net-connector personalizado:</p>
 
-        <pre data-tpl="adsbim"><code><span data-endpoint="beast-parts"></span>,beast_reduce_out</code><button class="copy">copy</button></pre>
+        <div class="term">
+          <div class="term-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+          <pre data-tpl="adsbim"><code><span data-endpoint="beast-parts"></span>,beast_reduce_out</code><button class="copy">copy</button></pre>
+        </div>
 
         <p data-lang="en">Save and let Ultrafeeder restart. It will connect on its own from then on.</p>
         <p data-lang="es">Guarda y deja que Ultrafeeder se reinicie. A partir de ahí se conectará solo.</p>
       </section>
 
       <section>
-        <h2 data-lang="en">Option 3 — one-off from any Linux/Mac shell</h2>
-        <h2 data-lang="es">Opción 3 — envío puntual desde cualquier shell Linux/Mac</h2>
+        <div class="section-head">
+          <span class="badge">③</span>
+          <h2 data-lang="en">Option 3 — one-off from any Linux/Mac shell</h2>
+          <h2 data-lang="es">Opción 3 — envío puntual desde cualquier shell Linux/Mac</h2>
+        </div>
 
         <p data-lang="en">If you already have a local dump1090 stream you want to test-forward, pipe it through <code class="inline">nc</code>:</p>
         <p data-lang="es">Si ya tienes un stream local de dump1090 y quieres probar reenviarlo, canalízalo por <code class="inline">nc</code>:</p>
 
-        <pre data-tpl="nc-beast"><code>nc localhost 30005 | nc <span data-endpoint="beast-parts-space"></span></code><button class="copy">copy</button></pre>
+        <div class="term">
+          <div class="term-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+          <pre data-tpl="nc-beast"><code>nc localhost 30005 | nc <span data-endpoint="beast-parts-space"></span></code><button class="copy">copy</button></pre>
+        </div>
 
         <p data-lang="en">Or SBS-1 (BaseStation) CSV:</p>
         <p data-lang="es">O SBS-1 (BaseStation) CSV:</p>
 
-        <pre data-tpl="nc-sbs"><code>nc localhost 30003 | nc <span data-endpoint="sbs-parts-space"></span></code><button class="copy">copy</button></pre>
+        <div class="term">
+          <div class="term-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+          <pre data-tpl="nc-sbs"><code>nc localhost 30003 | nc <span data-endpoint="sbs-parts-space"></span></code><button class="copy">copy</button></pre>
+        </div>
       </section>
 
       <section>
-        <h2 data-lang="en">Verify it worked</h2>
-        <h2 data-lang="es">Verifica que funciona</h2>
+        <div class="section-head">
+          <span class="badge">✓</span>
+          <h2 data-lang="en">Verify it worked</h2>
+          <h2 data-lang="es">Verifica que funciona</h2>
+        </div>
 
         <p data-lang="en">Check the stats endpoint — you should see <code class="inline">connections: 1</code> (or more) for the port you're feeding, and <code class="inline">totalFrames</code> climbing:</p>
         <p data-lang="es">Consulta el endpoint de estadísticas — deberías ver <code class="inline">connections: 1</code> (o más) para el puerto que estás alimentando y <code class="inline">totalFrames</code> subiendo:</p>
 
-        <pre><code>curl <span data-endpoint="http">https://this-server</span>/api/stats</code><button class="copy">copy</button></pre>
+        <div class="term">
+          <div class="term-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+          <pre><code>curl <span data-endpoint="http">https://this-server</span>/api/stats</code><button class="copy">copy</button></pre>
+        </div>
 
         <p data-lang="en">Then open the <a href="/">map</a> — within a few seconds your aircraft should appear.</p>
         <p data-lang="es">Luego abre el <a href="/">mapa</a> — en pocos segundos tus aeronaves deberían aparecer.</p>
       </section>
 
       <section>
-        <h2 data-lang="en">Troubleshooting</h2>
-        <h2 data-lang="es">Solución de problemas</h2>
+        <div class="section-head">
+          <span class="badge">⚠</span>
+          <h2 data-lang="en">Troubleshooting</h2>
+          <h2 data-lang="es">Solución de problemas</h2>
+        </div>
 
         <ul data-lang="en">
           <li><b>Nothing shows up.</b> Confirm your feeder is producing frames locally (<code class="inline">nc localhost 30005 | xxd | head</code>). If that's empty, fix the SDR side first.</li>
