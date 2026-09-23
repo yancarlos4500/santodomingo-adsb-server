@@ -36,22 +36,30 @@ function stringOrUndef(name: string): string | undefined {
 }
 
 export function loadConfig(): ServerConfig {
-  const beastPort = intFromEnv("ADSB_BEAST_PORT", 30005);
-  const rawPort = intFromEnv("ADSB_RAW_PORT", 30002);
-  const sbsPort = intFromEnv("ADSB_SBS_PORT", 30003);
-  // Railway (and most PaaS) inject PORT; fall back to ADSB_HTTP_PORT, then 8080.
-  let httpPort = intFromEnv("PORT", intFromEnv("ADSB_HTTP_PORT", 8080));
+  // Railway's proxy/healthcheck always targets this exact PORT value, so it
+  // must never be remapped — any port shuffling has to happen on the feeder
+  // side instead.
+  const httpPort = intFromEnv("PORT", intFromEnv("ADSB_HTTP_PORT", 8080));
 
-  // A misconfigured PORT variable that collides with a feeder port causes an
-  // EADDRINUSE crash loop before the healthcheck can ever pass — fall back
-  // to a safe default instead of letting the process die on startup.
-  if (httpPort === beastPort || httpPort === rawPort || httpPort === sbsPort) {
-    console.error(
-      `[config] PORT=${httpPort} collides with a feeder port (beast=${beastPort}, raw=${rawPort}, sbs=${sbsPort}); ` +
-        `falling back to 8080. Fix the PORT variable in your deploy environment.`,
-    );
-    httpPort = 8080;
-  }
+  // A feeder port colliding with httpPort causes an EADDRINUSE crash loop
+  // before the healthcheck can ever pass; bump the feeder off httpPort
+  // instead of touching httpPort (which Railway's proxy depends on).
+  const reserved = new Set<number>([httpPort]);
+  const resolveFeederPort = (name: string, fallback: number): number => {
+    let port = intFromEnv(name, fallback);
+    while (reserved.has(port)) {
+      console.error(
+        `[config] ${name}=${port} collides with httpPort=${httpPort}; bumping to ${port + 1}.`,
+      );
+      port += 1;
+    }
+    reserved.add(port);
+    return port;
+  };
+
+  const beastPort = resolveFeederPort("ADSB_BEAST_PORT", 30005);
+  const rawPort = resolveFeederPort("ADSB_RAW_PORT", 30002);
+  const sbsPort = resolveFeederPort("ADSB_SBS_PORT", 30003);
 
   return {
     beastPort,
