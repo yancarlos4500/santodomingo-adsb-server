@@ -157,25 +157,21 @@ function decodeCallsign(me: Buffer): string {
 }
 
 function decodeAirbornePositionAltitude(me: Buffer, tc: number): number | undefined {
+  // Altitude occupies ME bits 9-20 (12 bits): all of me[1] plus the top
+  // nibble of me[2].
+  const ac12 = ((me[1] << 4) | (me[2] >> 4)) & 0x0fff;
+
   if (tc >= 20 && tc <= 22) {
-    // GNSS altitude in metres, 12 bits.
-    const altMeters = ((me[1] & 0x0f) << 8) | me[2];
-    return Math.round(altMeters * 3.28084);
+    // GNSS height above ellipsoid, metres.
+    return Math.round(ac12 * 3.28084);
   }
-  const raw = ((me[1] & 0x0f) << 8) | me[2];
-  const alt12 = raw >> 4; // top 8 bits
-  const qBit = (raw >> 4) & 0x01; // Q bit is bit 4 of raw before shift
-  // Recompute more carefully:
-  const altBits = ((me[1] & 0x0f) << 8) | me[2]; // 12 bits: AC12
-  const q = (altBits >> 4) & 0x01;
+
+  const q = (ac12 >> 4) & 0x01;
   if (q === 1) {
-    const n = ((altBits & 0xfe0) >> 1) | (altBits & 0x0f);
+    const n = ((ac12 & 0x0fe0) >> 1) | (ac12 & 0x000f);
     return n * 25 - 1000;
   }
   // Gillham-coded altitude — rarely seen in ADS-B; leave unresolved.
-  void alt12;
-  void qBit;
-  void raw;
   return undefined;
 }
 
