@@ -44,6 +44,8 @@ export function createWebServer(
   app.get("/api/feed-info", (_req, res) => {
     res.json({
       siteName: config.siteName ?? null,
+      siteLat: config.siteLat ?? null,
+      siteLon: config.siteLon ?? null,
       beast: config.publicBeast ?? null,
       raw: config.publicRaw ?? null,
       sbs: config.publicSbs ?? null,

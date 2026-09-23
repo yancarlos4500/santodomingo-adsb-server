@@ -3,6 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#060a12" />
     <title>ADS-B Scope</title>
     <link
       rel="icon"
@@ -51,6 +53,53 @@
         gap: 6px;
         margin-top: 10px;
         width: 100%;
+      }
+      #sidebar header .toolbar {
+        display: flex;
+        gap: 6px;
+        margin-top: 10px;
+      }
+      #search-input {
+        flex: 1;
+        min-width: 0;
+        background: var(--panel-alt);
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        color: var(--text);
+        font-family: var(--mono);
+        font-size: 12px;
+        padding: 6px 8px;
+      }
+      #search-input:focus {
+        outline: none;
+        border-color: var(--accent-dim);
+      }
+      #sort-select {
+        color-scheme: dark;
+        background: var(--panel-alt);
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        color: var(--text);
+        font-family: var(--mono);
+        font-size: 11px;
+        padding: 6px 4px;
+      }
+      .toggle-row {
+        display: flex;
+        gap: 12px;
+        margin-top: 8px;
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .toggle-row label {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        cursor: pointer;
+      }
+      .toggle-row input[type="checkbox"] {
+        accent-color: var(--accent);
       }
       .scroll-area {
         flex: 1;
@@ -120,6 +169,19 @@
       .ac-row .alt {
         color: var(--muted);
         font-variant-numeric: tabular-nums;
+      }
+      .ac-row {
+        flex-wrap: wrap;
+      }
+      .ac-row .sub {
+        flex-basis: 100%;
+        color: var(--muted);
+        font-size: 10.5px;
+        padding-left: 15px;
+      }
+      .ac-row .sub .emergency {
+        color: var(--danger);
+        font-weight: 700;
       }
       #empty-state {
         padding: 24px 14px;
@@ -218,6 +280,19 @@
             <span class="pill" id="count-pill"><span class="dot"></span><span id="ac-count">0</span> aircraft</span>
             <span class="pill down" id="ws-pill"><span class="dot"></span><span id="ws-state">connecting</span></span>
           </div>
+          <div class="toolbar">
+            <input id="search-input" type="text" placeholder="Filter by callsign or ICAO…" autocomplete="off" />
+            <select id="sort-select">
+              <option value="callsign">Sort: Callsign</option>
+              <option value="altitude">Sort: Altitude</option>
+              <option value="speed">Sort: Speed</option>
+              <option value="distance">Sort: Distance</option>
+            </select>
+          </div>
+          <div class="toggle-row">
+            <label><input type="checkbox" id="trails-toggle" /> trails</label>
+            <label><input type="checkbox" id="follow-toggle" /> follow selected</label>
+          </div>
           <a href="/feed" class="btn feed-link">📡 How to feed / Cómo enviar datos →</a>
         </header>
         <div class="scroll-area">
@@ -257,13 +332,26 @@
         zoomControl: false,
       });
       L.control.zoom({ position: "bottomleft" }).addTo(map);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 18,
-        attribution: "© OpenStreetMap",
-      }).addTo(map);
+      L.tileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+        {
+          maxZoom: 16,
+          maxNativeZoom: 16,
+          attribution: "© Esri, HERE, Garmin, © OpenStreetMap contributors",
+        },
+      ).addTo(map);
 
       const markers = new Map(); // icao -> { marker, ac }
+      const trailPoints = new Map(); // icao -> latlng[]
+      const trailLayers = new Map(); // icao -> L.Polyline
       let selectedIcao = null;
+      let lastList = [];
+      let lastNow = Date.now();
+      let searchQuery = "";
+      let sortMode = "callsign";
+      let showTrails = false;
+      let followSelected = false;
+      let site = null; // { lat, lon, name }
       const listEl = document.getElementById("aircraft-list");
       const emptyEl = document.getElementById("empty-state");
       const countEl = document.getElementById("ac-count");
@@ -272,6 +360,11 @@
       const feedersEl = document.getElementById("feeders");
       const wsStateEl = document.getElementById("ws-state");
       const wsPillEl = document.getElementById("ws-pill");
+      const searchInput = document.getElementById("search-input");
+      const sortSelect = document.getElementById("sort-select");
+      const trailsToggle = document.getElementById("trails-toggle");
+      const followToggle = document.getElementById("follow-toggle");
+      const EMERGENCY_SQUAWKS = new Set(["7500", "7600", "7700"]);
 
       // Colour-by-altitude, the same convention most ADS-B scopes use.
       function altColor(ac) {
@@ -285,12 +378,41 @@
         return "#b18cff";
       }
 
+      // Great-circle distance (nm) and initial bearing (deg) from the receiver site.
+      function distNm(lat1, lon1, lat2, lon2) {
+        const R = 3440.065;
+        const toRad = (d) => (d * Math.PI) / 180;
+        const dLat = toRad(lat2 - lat1);
+        const dLon = toRad(lon2 - lon1);
+        const a =
+          Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      }
+      function bearingDeg(lat1, lon1, lat2, lon2) {
+        const toRad = (d) => (d * Math.PI) / 180;
+        const y = Math.sin(toRad(lon2 - lon1)) * Math.cos(toRad(lat2));
+        const x =
+          Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
+          Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(toRad(lon2 - lon1));
+        return (Math.atan2(y, x) * 180) / Math.PI + (Math.atan2(y, x) < 0 ? 360 : 0);
+      }
+      function vsArrow(fpm) {
+        if (fpm === undefined) return "";
+        if (fpm > 200) return "▲";
+        if (fpm < -200) return "▼";
+        return "▬";
+      }
+      function ageText(lastSeen) {
+        const s = Math.max(0, Math.round((lastNow - lastSeen) / 1000));
+        return s < 60 ? `${s}s ago` : `${Math.round(s / 60)}m ago`;
+      }
+
       const PLANE_PATH =
         "M12 2c-1.1 0-2 .9-2 2v5.5L2 14v2l8-2.5V19l-2.5 1.5V22l4.5-1 4.5 1v-1.5L14 19v-5.5l8 2.5v-2l-8-4.5V4c0-1.1-.9-2-2-2z";
 
       function iconFor(ac) {
         const rot = Math.round(ac.trackDeg ?? 0);
-        const stale = Date.now() - ac.lastSeen > 15000 ? "stale" : "";
+        const stale = lastNow - ac.lastSeen > 15000 ? "stale" : "";
         const size = ac.icao === selectedIcao ? 26 : 20;
         return L.divIcon({
           className: "",
@@ -309,19 +431,45 @@
         if (ac.altitudeFt !== undefined) rows.push(`ALT&nbsp; ${ac.altitudeFt.toLocaleString()} ft`);
         if (ac.groundSpeedKt !== undefined) rows.push(`GS&nbsp;&nbsp; ${ac.groundSpeedKt} kt`);
         if (ac.trackDeg !== undefined) rows.push(`TRK&nbsp; ${ac.trackDeg}°`);
-        if (ac.verticalRateFpm !== undefined) rows.push(`V/S&nbsp; ${ac.verticalRateFpm} fpm`);
-        if (ac.squawk) rows.push(`SQK&nbsp; ${ac.squawk}`);
-        rows.push(`MSG&nbsp; ${ac.messages}`);
+        if (ac.verticalRateFpm !== undefined)
+          rows.push(`V/S&nbsp; ${ac.verticalRateFpm} fpm ${vsArrow(ac.verticalRateFpm)}`);
+        if (ac._distNm !== undefined) rows.push(`DIST&nbsp; ${ac._distNm.toFixed(1)} nm @ ${Math.round(ac._brg)}°`);
+        if (ac.squawk) {
+          const emerg = EMERGENCY_SQUAWKS.has(ac.squawk);
+          rows.push(`SQK&nbsp; ${ac.squawk}${emerg ? ' <span style="color:var(--danger); font-weight:700;">EMERGENCY</span>' : ""}`);
+        }
+        rows.push(`MSG&nbsp; ${ac.messages} · updated ${ageText(ac.lastSeen)}`);
         return `<div class="pop-title">${ac.callsign || ac.icao.toUpperCase()}</div>
           <div style="color:var(--muted); font-size:11px; margin-bottom:6px;">ICAO ${ac.icao.toUpperCase()}</div>
           ${rows.join("<br>")}`;
       }
 
-      function updateAircraft(list) {
+      function updateAircraft(list, now) {
+        lastList = list;
+        lastNow = now ?? Date.now();
+        render();
+      }
+
+      function render() {
+        const q = searchQuery.trim().toLowerCase();
+        let filtered = q
+          ? lastList.filter(
+              (ac) => (ac.callsign || "").toLowerCase().includes(q) || ac.icao.toLowerCase().includes(q),
+            )
+          : lastList;
+
+        if (site) {
+          for (const ac of filtered) {
+            if (ac.lat === undefined || ac.lon === undefined) continue;
+            ac._distNm = distNm(site.lat, site.lon, ac.lat, ac.lon);
+            ac._brg = bearingDeg(site.lat, site.lon, ac.lat, ac.lon);
+          }
+        }
+
         const seen = new Set();
-        for (const ac of list) {
-          seen.add(ac.icao);
+        for (const ac of filtered) {
           if (ac.lat === undefined || ac.lon === undefined) continue;
+          seen.add(ac.icao);
           const latlng = [ac.lat, ac.lon];
           let entry = markers.get(ac.icao);
           if (!entry) {
@@ -335,30 +483,73 @@
             entry.marker.setIcon(iconFor(ac));
           }
           entry.marker.bindPopup(popupFor(ac));
+
+          if (showTrails) {
+            let pts = trailPoints.get(ac.icao);
+            if (!pts) {
+              pts = [];
+              trailPoints.set(ac.icao, pts);
+            }
+            const last = pts[pts.length - 1];
+            if (!last || last[0] !== latlng[0] || last[1] !== latlng[1]) pts.push(latlng);
+            if (pts.length > 30) pts.shift();
+            let line = trailLayers.get(ac.icao);
+            if (!line) {
+              line = L.polyline(pts, { color: altColor(ac), weight: 2, opacity: 0.55 }).addTo(map);
+              trailLayers.set(ac.icao, line);
+            } else {
+              line.setLatLngs(pts);
+              line.setStyle({ color: altColor(ac) });
+            }
+          }
+
+          if (followSelected && ac.icao === selectedIcao) {
+            map.panTo(latlng, { animate: true });
+          }
         }
         for (const [icao, entry] of markers) {
           if (!seen.has(icao)) {
             map.removeLayer(entry.marker);
             markers.delete(icao);
+            const line = trailLayers.get(icao);
+            if (line) {
+              map.removeLayer(line);
+              trailLayers.delete(icao);
+            }
+            trailPoints.delete(icao);
           }
         }
 
-        countEl.textContent = list.length;
-        count2El.textContent = list.length;
-        countPillEl.classList.toggle("live", list.length > 0);
-        emptyEl.hidden = list.length > 0;
+        countEl.textContent = filtered.length;
+        count2El.textContent = filtered.length;
+        countPillEl.classList.toggle("live", filtered.length > 0);
+        emptyEl.hidden = filtered.length > 0;
+        emptyEl.textContent =
+          lastList.length === 0
+            ? "No aircraft tracked yet — waiting for feeder data…"
+            : "No aircraft match your filter.";
 
-        listEl.innerHTML = list
-          .slice()
-          .sort((a, b) => (a.callsign || a.icao).localeCompare(b.callsign || b.icao))
+        const sorted = filtered.slice().sort((a, b) => {
+          if (sortMode === "altitude") return (b.altitudeFt ?? -1) - (a.altitudeFt ?? -1);
+          if (sortMode === "speed") return (b.groundSpeedKt ?? -1) - (a.groundSpeedKt ?? -1);
+          if (sortMode === "distance") return (a._distNm ?? Infinity) - (b._distNm ?? Infinity);
+          return (a.callsign || a.icao).localeCompare(b.callsign || b.icao);
+        });
+
+        listEl.innerHTML = sorted
           .map((ac) => {
             const sel = ac.icao === selectedIcao ? "selected" : "";
             const color = altColor(ac);
+            const sub = [];
+            if (ac.groundSpeedKt !== undefined) sub.push(`${ac.groundSpeedKt}kt ${vsArrow(ac.verticalRateFpm)}`);
+            if (ac._distNm !== undefined) sub.push(`${ac._distNm.toFixed(0)}nm`);
+            if (ac.squawk && EMERGENCY_SQUAWKS.has(ac.squawk)) sub.push(`<span class="emergency">SQK ${ac.squawk}</span>`);
             return `
             <div class="ac-row ${sel}" data-icao="${ac.icao}">
               <span class="swatch" style="background:${color}; color:${color}"></span>
               <span class="cs">${ac.callsign || ac.icao.toUpperCase()}</span>
               <span class="alt">${ac.altitudeFt !== undefined ? ac.altitudeFt.toLocaleString() + " ft" : "—"}</span>
+              ${sub.length ? `<span class="sub">${sub.join(" · ")}</span>` : ""}
             </div>`;
           })
           .join("");
@@ -366,18 +557,18 @@
 
       function selectAircraft(icao) {
         const prev = selectedIcao;
-        selectedIcao = icao;
-        for (const id of [prev, icao]) {
+        selectedIcao = selectedIcao === icao ? null : icao;
+        for (const id of [prev, selectedIcao]) {
           const entry = markers.get(id);
           if (entry) entry.marker.setIcon(iconFor(entry.ac));
         }
-        const entry = markers.get(icao);
+        const entry = markers.get(selectedIcao);
         if (entry) {
           map.setView(entry.marker.getLatLng(), Math.max(map.getZoom(), 8));
           entry.marker.openPopup();
         }
         document.querySelectorAll(".ac-row").forEach((row) => {
-          row.classList.toggle("selected", row.dataset.icao === icao);
+          row.classList.toggle("selected", row.dataset.icao === selectedIcao);
         });
       }
 
@@ -386,6 +577,52 @@
         if (!row) return;
         selectAircraft(row.dataset.icao);
       });
+
+      searchInput.addEventListener("input", () => {
+        searchQuery = searchInput.value;
+        render();
+      });
+      sortSelect.addEventListener("change", () => {
+        sortMode = sortSelect.value;
+        render();
+      });
+      trailsToggle.addEventListener("change", () => {
+        showTrails = trailsToggle.checked;
+        if (!showTrails) {
+          for (const line of trailLayers.values()) map.removeLayer(line);
+          trailLayers.clear();
+          trailPoints.clear();
+        }
+        render();
+      });
+      followToggle.addEventListener("change", () => {
+        followSelected = followToggle.checked;
+      });
+
+      async function loadSiteInfo() {
+        try {
+          const r = await fetch("/api/feed-info");
+          const info = await r.json();
+          if (info.siteLat != null && info.siteLon != null) {
+            site = { lat: info.siteLat, lon: info.siteLon, name: info.siteName };
+            L.circleMarker([site.lat, site.lon], {
+              radius: 6,
+              color: "#34e2b0",
+              weight: 2,
+              fillColor: "#34e2b0",
+              fillOpacity: 0.4,
+            })
+              .addTo(map)
+              .bindPopup(site.name || "Receiver site");
+            map.setView([site.lat, site.lon], 7);
+          } else {
+            const distOption = sortSelect.querySelector('option[value="distance"]');
+            if (distOption) distOption.remove();
+          }
+        } catch {
+          /* transient */
+        }
+      }
 
       async function refreshStats() {
         try {
@@ -419,13 +656,14 @@
         ws.onmessage = (ev) => {
           try {
             const msg = JSON.parse(ev.data);
-            if (msg.type === "snapshot") updateAircraft(msg.aircraft);
+            if (msg.type === "snapshot") updateAircraft(msg.aircraft, msg.now);
           } catch {
             /* ignore */
           }
         };
       }
 
+      loadSiteInfo();
       connect();
       refreshStats();
       setInterval(refreshStats, 3000);

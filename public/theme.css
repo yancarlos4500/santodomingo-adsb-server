@@ -2,6 +2,7 @@
 @import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
 
 :root {
+  color-scheme: dark;
   --bg: #060a12;
   --bg-alt: #0a1120;
   --panel: #0d1526;

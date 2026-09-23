@@ -21,6 +21,10 @@ export interface ServerConfig {
   publicSbs?: string;
   /** Optional operator/site name to display on the /feed page. */
   siteName?: string;
+  /** Optional receiver latitude, used to show distance/bearing to aircraft. */
+  siteLat?: number;
+  /** Optional receiver longitude, used to show distance/bearing to aircraft. */
+  siteLon?: number;
 }
 
 function intFromEnv(name: string, fallback: number): number {
@@ -28,6 +32,13 @@ function intFromEnv(name: string, fallback: number): number {
   if (!v) return fallback;
   const n = Number.parseInt(v, 10);
   return Number.isFinite(n) ? n : fallback;
+}
+
+function floatFromEnv(name: string): number | undefined {
+  const v = process.env[name];
+  if (!v) return undefined;
+  const n = Number.parseFloat(v);
+  return Number.isFinite(n) ? n : undefined;
 }
 
 function stringOrUndef(name: string): string | undefined {
@@ -73,5 +84,7 @@ export function loadConfig(): ServerConfig {
     publicRaw: stringOrUndef("ADSB_PUBLIC_RAW"),
     publicSbs: stringOrUndef("ADSB_PUBLIC_SBS"),
     siteName: stringOrUndef("ADSB_SITE_NAME"),
+    siteLat: floatFromEnv("ADSB_SITE_LAT"),
+    siteLon: floatFromEnv("ADSB_SITE_LON"),
   };
 }
