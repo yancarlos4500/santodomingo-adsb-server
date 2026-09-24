@@ -74,15 +74,15 @@ curl "https://your-server.example.com/api/v3/lat/18.47/lon/-69.9/dist/250"
 Returns `{ "ac": [...], "msg": "No error", "now": <ms>, "total": N, "ctime": <ms>, "ptime": <ms> }`, where each `ac` entry includes:
 
 - `hex`, `flight`, `category` (emitter category, e.g. `A3`)
+- `r`, `t`, `desc` — registration, ICAO type designator, and description (e.g. `G-LHMS`, `EC20`, `EC120 B COLIBRI`), looked up from the free [adsbdb.com](https://www.adsbdb.com) registry API the first time each ICAO is seen and cached in-memory (aircraft registrations essentially never change, so unknowns are retried hourly and hits are kept for 24h). If the ICAO isn't in adsbdb's database, or the lookup hasn't resolved yet, these fields are simply omitted.
 - `type` — position source: `adsb_icao` (DF17) or `tisb` (DF18, best-effort)
 - `lat`, `lon`, `alt_baro` (or `"ground"`), `alt_geom` (GNSS height, when reported instead of barometric)
 - `gs`, `track`, `baro_rate`, `squawk`
 - `nic`, `rc` — position integrity/containment radius (meters), derived from the ADS-B position type code
 - `nav_qnh`, `nav_altitude_mcp`/`nav_altitude_fms`, `nav_heading` — pilot-selected altitude/pressure/heading, from the Target State and Status message (TC 29)
+- `ias`, `mach` — indicated airspeed and Mach number, from Comm-B Heading and Speed Reports (BDS 6,0, carried in DF20/21). These replies XOR the ICAO into the CRC rather than sending it in the clear, so we only decode them for addresses recently seen in a DF17/18 frame, and only when the bits pass a BDS 6,0 plausibility check — otherwise we skip the message rather than risk misattributing it.
 - `messages`, `seen`, `seen_pos` (seconds), `rssi` (approximate dBFS, Beast-sourced only)
 - `dst` (nm from the query point), `dir` (bearing in degrees)
-
-> Note: fields that require a static aircraft registry (`r` registration, `t` type designator, `desc` description) aren't included — this server only outputs what it decodes from the RF messages themselves, no external database lookup.
 
 > Note: SBS-1-only feeders don't carry raw Mode-S frame bytes, so messages that arrive purely via the SBS port aren't re-broadcast on this output — only Beast- and raw-AVR-sourced traffic is.
 

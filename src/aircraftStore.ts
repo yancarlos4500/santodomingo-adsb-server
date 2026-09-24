@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import type { AircraftRegistryInfo } from "./aircraftDb";
 
 export interface AircraftUpdate {
   icao: string;
@@ -22,11 +23,15 @@ export interface AircraftUpdate {
   navAltitudeFmsFt?: number;
   navQnh?: number;
   navHeadingDeg?: number;
+  /** Indicated airspeed, from a Comm-B Heading and Speed Report (BDS 6,0). */
+  iasKt?: number;
+  /** Mach number, from a Comm-B Heading and Speed Report (BDS 6,0). */
+  mach?: number;
   /** Feeder id (e.g. remote address) that supplied the message. */
   source?: string;
 }
 
-export interface Aircraft extends AircraftUpdate {
+export interface Aircraft extends AircraftUpdate, AircraftRegistryInfo {
   icao: string;
   firstSeen: number;
   lastSeen: number;
@@ -55,6 +60,14 @@ export interface AircraftJson {
   navAltitudeFmsFt?: number;
   navQnh?: number;
   navHeadingDeg?: number;
+  iasKt?: number;
+  mach?: number;
+  registration?: string;
+  icaoAircraftType?: string;
+  aircraftType?: string;
+  manufacturer?: string;
+  owner?: string;
+  ownerCountry?: string;
   firstSeen: number;
   lastSeen: number;
   messages: number;
@@ -63,8 +76,8 @@ export interface AircraftJson {
 
 /**
  * In-memory store of currently tracked aircraft, keyed by ICAO24 hex.
- * Emits `update` when an aircraft is added or modified and `remove` when
- * pruned for staleness.
+ * Emits `update` when an aircraft is added or modified, `new` the first
+ * time an ICAO is seen, and `remove` when pruned for staleness.
  */
 export class AircraftStore extends EventEmitter {
   private readonly aircraft = new Map<string, Aircraft>();
@@ -77,6 +90,7 @@ export class AircraftStore extends EventEmitter {
     const now = Date.now();
     const icao = update.icao.toLowerCase();
     let ac = this.aircraft.get(icao);
+    const isNew = !ac;
     if (!ac) {
       ac = {
         icao,
@@ -107,13 +121,24 @@ export class AircraftStore extends EventEmitter {
     if (update.navAltitudeFmsFt !== undefined) ac.navAltitudeFmsFt = update.navAltitudeFmsFt;
     if (update.navQnh !== undefined) ac.navQnh = update.navQnh;
     if (update.navHeadingDeg !== undefined) ac.navHeadingDeg = update.navHeadingDeg;
+    if (update.iasKt !== undefined) ac.iasKt = update.iasKt;
+    if (update.mach !== undefined) ac.mach = update.mach;
     if (update.source) ac.sources.add(update.source);
 
     ac.lastSeen = now;
     ac.messages += 1;
 
     this.emit("update", ac);
+    if (isNew) this.emit("new", ac);
     return ac;
+  }
+
+  /** Merges registry lookup results (registration/type/manufacturer) into an already-tracked aircraft. */
+  attachRegistry(icao: string, info: AircraftRegistryInfo): void {
+    const ac = this.aircraft.get(icao.toLowerCase());
+    if (!ac) return; // aircraft aged out before the lookup resolved
+    Object.assign(ac, info);
+    this.emit("update", ac);
   }
 
   prune(now: number = Date.now()): string[] {
@@ -156,6 +181,14 @@ export class AircraftStore extends EventEmitter {
         navAltitudeFmsFt: ac.navAltitudeFmsFt,
         navQnh: ac.navQnh,
         navHeadingDeg: ac.navHeadingDeg,
+        iasKt: ac.iasKt,
+        mach: ac.mach,
+        registration: ac.registration,
+        icaoAircraftType: ac.icaoAircraftType,
+        aircraftType: ac.aircraftType,
+        manufacturer: ac.manufacturer,
+        owner: ac.owner,
+        ownerCountry: ac.ownerCountry,
         firstSeen: ac.firstSeen,
         lastSeen: ac.lastSeen,
         messages: ac.messages,

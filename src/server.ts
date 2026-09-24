@@ -2,12 +2,20 @@ import { loadConfig } from "./config";
 import { AircraftStore } from "./aircraftStore";
 import { ModeSDecoder } from "./decoder";
 import { BeastFeeder, RawFeeder, SbsFeeder, BeastOutServer, BeastPushClient, BeastSink } from "./feeders";
+import { AircraftRegistryLookup } from "./aircraftDb";
 import { broadcastSnapshot, createWebServer } from "./webServer";
 
 async function main() {
   const cfg = loadConfig();
   const store = new AircraftStore(cfg.aircraftTtlMs);
   const decoder = new ModeSDecoder();
+
+  const registryLookup = new AircraftRegistryLookup();
+  store.on("new", (ac: { icao: string }) => {
+    registryLookup.lookup(ac.icao).then((info) => {
+      if (info) store.attachRegistry(ac.icao, info);
+    });
+  });
 
   const beastOut = new BeastOutServer();
   const pushClients = cfg.pushTargets.map((t) => new BeastPushClient(t.host, t.port));

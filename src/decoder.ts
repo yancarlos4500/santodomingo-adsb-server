@@ -49,6 +49,10 @@ export interface DecodedMessage {
   navQnh?: number;
   /** Selected heading, in degrees. */
   navHeadingDeg?: number;
+  /** Indicated airspeed, from a Comm-B Heading and Speed Report (BDS 6,0). */
+  iasKt?: number;
+  /** Mach number, from a Comm-B Heading and Speed Report (BDS 6,0). */
+  mach?: number;
 }
 
 interface CprFrame {
@@ -73,17 +77,26 @@ export class ModeSDecoder {
   /** Maximum age (ms) for pairing even and odd CPR frames. */
   private readonly cprPairMaxAgeMs = 10_000;
 
+  /** ICAO addresses seen in the clear (DF17/18), used to verify DF20/21 CRC-derived addresses. */
+  private readonly knownIcao = new Map<string, number>();
+
+  /** Maximum age (ms) for trusting a DF20/21 address against the known-ICAO cache. */
+  private readonly knownIcaoTtlMs = 5 * 60_000;
+
   decode(frame: Buffer): DecodedMessage | null {
     if (frame.length !== 7 && frame.length !== 14) return null;
     const df = (frame[0] >> 3) & 0x1f;
 
+    if (df === 20 || df === 21) return this.decodeCommB(frame, df);
+
     // Only DF17/18 carry ICAO24 in the clear (bytes 1..3). For DF11
-    // the ICAO is also in the clear. For DF0/4/5/16/20/21 the ICAO is
+    // the ICAO is also in the clear. For DF0/4/5/16 the ICAO is
     // XOR-encoded into the CRC (Address/Parity) and requires a lookup
     // table of known aircraft — we skip those here.
     if (df !== 17 && df !== 18 && df !== 11) return null;
 
     const icao = frame.subarray(1, 4).toString("hex");
+    this.knownIcao.set(icao, Date.now());
 
     if (df === 11) {
       // All-call reply — announces presence only.
@@ -171,6 +184,24 @@ export class ModeSDecoder {
     if (st.even.surface !== st.odd.surface) return null;
 
     return decodeCprGlobal(st.even, st.odd, oddFlag === 1, surface);
+  }
+
+  /**
+   * DF20/21 Comm-B replies XOR the ICAO into the CRC instead of carrying it
+   * in the clear, so we recover it via CRC-24 and only trust the result if
+   * it matches an address we've independently seen in a DF17/18 frame
+   * recently — otherwise the "recovered" address is as likely to be noise
+   * as a real aircraft.
+   */
+  private decodeCommB(frame: Buffer, df: number): DecodedMessage | null {
+    if (frame.length !== 14) return null; // Comm-B replies are always the long format
+    const icao = crc24(frame).toString(16).padStart(6, "0");
+    const seenAt = this.knownIcao.get(icao);
+    if (seenAt === undefined || Date.now() - seenAt > this.knownIcaoTtlMs) return null;
+
+    const mb = payloadToBigInt(frame.subarray(4, 11));
+    if (!isPlausibleBds60(mb)) return { icao, df };
+    return { icao, df, ...decodeBds60(mb) };
   }
 }
 
@@ -272,32 +303,124 @@ interface TargetStateAndStatus {
 }
 
 /**
+ * Converts a 56-bit ME/MB field to a BigInt so bit fields can be extracted
+ * without JS's 32-bit bitwise-operator limit.
+ */
+function payloadToBigInt(field: Buffer): bigint {
+  let v = 0n;
+  for (const b of field) v = (v << 8n) | BigInt(b);
+  return v;
+}
+
+/** Extracts a `width`-bit field starting at bit `from`, counted 0-55 from the MSB of a 56-bit payload. */
+function bitField(payload: bigint, from: number, width: number): number {
+  return Number((payload >> BigInt(55 - (from + width - 1))) & ((1n << BigInt(width)) - 1n));
+}
+
+/**
  * BDS 6,2 Target State and Status (TC=29): pilot-selected altitude/heading
- * and barometric setting. Bit offsets per DO-260B \u00a72.2.3.2.7.1 (verified
- * against pyModeS bds62), counted 0-55 from the MSB of the 56-bit ME field.
+ * and barometric setting. Bit offsets per DO-260B section 2.2.3.2.7.1
+ * (verified against pyModeS bds62), counted 0-55 from the MSB of the
+ * 56-bit ME field.
  */
 function decodeTargetStateAndStatus(me: Buffer): TargetStateAndStatus {
-  let payload = 0n;
-  for (const b of me) payload = (payload << 8n) | BigInt(b);
-  const bits = (from: number, width: number): number =>
-    Number((payload >> BigInt(55 - (from + width - 1))) & ((1n << BigInt(width)) - 1n));
-
+  const payload = payloadToBigInt(me);
   const out: TargetStateAndStatus = {};
 
-  const altRaw = bits(9, 11);
+  const altRaw = bitField(payload, 9, 11);
   if (altRaw !== 0) {
     out.altitudeFt = (altRaw - 1) * 32;
-    out.altitudeSource = bits(8, 1) === 1 ? "FMS" : "MCP/FCU";
+    out.altitudeSource = bitField(payload, 8, 1) === 1 ? "FMS" : "MCP/FCU";
   }
 
-  const baroRaw = bits(20, 9);
+  const baroRaw = bitField(payload, 20, 9);
   if (baroRaw !== 0) out.qnh = Math.round((800 + (baroRaw - 1) * 0.8) * 10) / 10;
 
-  if (bits(29, 1) !== 0) {
-    out.headingDeg = Math.round(((bits(30, 9) * 360) / 512) * 10) / 10;
+  if (bitField(payload, 29, 1) !== 0) {
+    out.headingDeg = Math.round(((bitField(payload, 30, 9) * 360) / 512) * 10) / 10;
   }
 
   return out;
+}
+
+interface HeadingAndSpeed {
+  iasKt?: number;
+  mach?: number;
+}
+
+/** Status-bit-gated: if the status bit is clear, the value bits must read zero for the message to be plausible. */
+function wrongStatus(payload: bigint, statusBit: number, valueStart: number, valueWidth: number): boolean {
+  if (bitField(payload, statusBit, 1) !== 0) return false;
+  return bitField(payload, valueStart, valueWidth) !== 0;
+}
+
+function signedMag(mag: number, sign: number): number {
+  return sign ? -mag : mag;
+}
+
+/**
+ * Best-effort plausibility check for BDS 6,0 (Heading and Speed Report),
+ * mirroring pyModeS's `is_bds60`: DF20/21 don't self-identify their BDS
+ * register, so we only trust the CRC-recovered ICAO *and* accept the
+ * decode if the bits look like a real BDS 6,0 report (status-bit
+ * consistency plus sane physical ranges).
+ */
+function isPlausibleBds60(payload: bigint): boolean {
+  if (wrongStatus(payload, 0, 1, 11)) return false; // heading: sign + 10-bit raw
+  if (wrongStatus(payload, 12, 13, 10)) return false; // indicated airspeed
+  if (wrongStatus(payload, 23, 24, 10)) return false; // mach
+  if (wrongStatus(payload, 34, 35, 10)) return false; // baro vertical rate: sign + 9-bit mag
+  if (wrongStatus(payload, 45, 46, 10)) return false; // inertial vertical rate: sign + 9-bit mag
+
+  if (bitField(payload, 12, 1) !== 0 && bitField(payload, 13, 10) > 500) return false; // IAS <= 500kt
+  if (bitField(payload, 23, 1) !== 0 && (bitField(payload, 24, 10) * 2.048) / 512 > 1) return false; // Mach <= 1
+
+  if (bitField(payload, 34, 1) !== 0) {
+    const vr = signedMag(bitField(payload, 36, 9), bitField(payload, 35, 1)) * 32;
+    if (Math.abs(vr) > 6000) return false;
+  }
+  if (bitField(payload, 45, 1) !== 0) {
+    const vr = signedMag(bitField(payload, 47, 9), bitField(payload, 46, 1)) * 32;
+    if (Math.abs(vr) > 6000) return false;
+  }
+  return true;
+}
+
+function decodeBds60(payload: bigint): HeadingAndSpeed {
+  const out: HeadingAndSpeed = {};
+  if (bitField(payload, 12, 1) !== 0) out.iasKt = bitField(payload, 13, 10);
+  if (bitField(payload, 23, 1) !== 0) {
+    out.mach = Math.round(((bitField(payload, 24, 10) * 2.048) / 512) * 1000) / 1000;
+  }
+  return out;
+}
+
+const CRC_POLY = 0xfff409;
+const CRC_TABLE: number[] = buildCrcTable();
+
+function buildCrcTable(): number[] {
+  const table = new Array<number>(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i << 16;
+    for (let b = 0; b < 8; b++) c = (c & 0x800000) !== 0 ? ((c << 1) ^ CRC_POLY) : c << 1;
+    table[i] = c & 0xffffff;
+  }
+  return table;
+}
+
+/**
+ * Mode-S CRC-24 remainder over a full frame: 0 for a valid DF17/18 message;
+ * for DF20/21 it's the aircraft's ICAO address XORed into the parity field.
+ */
+function crc24(frame: Buffer): number {
+  const dataBytes = frame.length - 3;
+  let crc = 0;
+  for (let i = 0; i < dataBytes; i++) {
+    crc = ((crc << 8) & 0xffffff) ^ CRC_TABLE[((crc >> 16) ^ frame[i]) & 0xff];
+  }
+  let parity = 0;
+  for (let i = dataBytes; i < frame.length; i++) parity = (parity << 8) | frame[i];
+  return (crc ^ parity) & 0xffffff;
 }
 
 function decodeSurfaceVelocity(me: Buffer): { speed: number; track: number } | null {
