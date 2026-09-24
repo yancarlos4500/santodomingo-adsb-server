@@ -23,13 +23,24 @@ export interface DecodedMessage {
   df: number;
   tc?: number;
   callsign?: string;
+  /** Wake-turbulence/emitter category, e.g. "A3" (formatted like readsb/dump1090). */
+  category?: string;
   lat?: number;
   lon?: number;
+  /** Barometric altitude (TC 9-18). */
   altitudeFt?: number;
+  /** GNSS/geometric height above ellipsoid (TC 20-22), when reported instead of barometric. */
+  altitudeGeomFt?: number;
   groundSpeedKt?: number;
   trackDeg?: number;
   verticalRateFpm?: number;
   onGround?: boolean;
+  /** Navigation Integrity Category, derived from the position type code. */
+  nic?: number;
+  /** Containment radius in meters implied by `nic`. */
+  rc?: number;
+  /** Best-effort position source: DF17 is always ICAO-addressed ADS-B; DF18 is typically TIS-B. */
+  posSource?: "adsb_icao" | "tisb";
 }
 
 interface CprFrame {
@@ -74,10 +85,11 @@ export class ModeSDecoder {
     // DF17 / DF18 extended squitter, ME field is bytes 4..10.
     const me = frame.subarray(4, 11);
     const tc = (me[0] >> 3) & 0x1f;
-    const msg: DecodedMessage = { icao, df, tc };
+    const msg: DecodedMessage = { icao, df, tc, posSource: df === 18 ? "tisb" : "adsb_icao" };
 
     if (tc >= 1 && tc <= 4) {
       msg.callsign = decodeCallsign(me);
+      msg.category = categoryFromTypeCode(tc, me[0] & 0x07);
     } else if (tc >= 5 && tc <= 8) {
       // Surface position — encoded speed/track live in the ME field too.
       const surface = decodeSurfaceVelocity(me);
@@ -92,8 +104,15 @@ export class ModeSDecoder {
         msg.lon = pos.lon;
       }
     } else if ((tc >= 9 && tc <= 18) || (tc >= 20 && tc <= 22)) {
-      msg.altitudeFt = decodeAirbornePositionAltitude(me, tc);
+      const alt = decodeAirbornePositionAltitude(me, tc);
+      if (tc >= 20) msg.altitudeGeomFt = alt;
+      else msg.altitudeFt = alt;
       msg.onGround = false;
+      const nic = TC_TO_NIC[tc];
+      if (nic !== undefined) {
+        msg.nic = nic;
+        msg.rc = NIC_TO_RC[nic];
+      }
       const pos = this.tryPosition(icao, me, false);
       if (pos) {
         msg.lat = pos.lat;
@@ -140,6 +159,28 @@ export class ModeSDecoder {
 }
 
 // --- ME-field helpers ---------------------------------------------------
+
+/** Position type code -> Navigation Integrity Category (base table, ignoring the NIC supplement bit). */
+const TC_TO_NIC: Record<number, number> = {
+  9: 11, 10: 10, 11: 8, 12: 7, 13: 6, 14: 5, 15: 4, 16: 2, 17: 1, 18: 0,
+  20: 11, 21: 10, 22: 0,
+};
+
+/** NIC -> containment radius in meters (DO-260B Table 2-8). */
+const NIC_TO_RC: Record<number, number> = {
+  11: 7.5, 10: 25, 9: 75, 8: 185.2, 7: 370.4, 6: 926, 5: 1852, 4: 3704,
+  3: 7408, 2: 14816, 1: 37040,
+};
+
+/**
+ * Emitter category, formatted like readsb/dump1090: high nibble encodes the
+ * message subtype set (TC 1-4 -> D/C/B/A), low nibble is the CA subfield.
+ */
+function categoryFromTypeCode(tc: number, ca: number): string {
+  const high = (0x0e - tc) & 0x0f;
+  const byte = (high << 4) | (ca & 0x07);
+  return byte.toString(16).toUpperCase().padStart(2, "0");
+}
 
 const CALLSIGN_CHARS =
   "#ABCDEFGHIJKLMNOPQRSTUVWXYZ##### ###############0123456789######";

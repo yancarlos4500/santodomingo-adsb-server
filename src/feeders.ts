@@ -83,16 +83,22 @@ abstract class FeederListener {
     );
   }
 
-  protected apply(msg: DecodedMessage, source: string) {
+  protected apply(msg: DecodedMessage, source: string, rssi?: number) {
     const upd: AircraftUpdate = { icao: msg.icao, source };
     if (msg.callsign) upd.callsign = msg.callsign;
+    if (msg.category !== undefined) upd.category = msg.category;
     if (msg.lat !== undefined) upd.lat = msg.lat;
     if (msg.lon !== undefined) upd.lon = msg.lon;
     if (msg.altitudeFt !== undefined) upd.altitudeFt = msg.altitudeFt;
+    if (msg.altitudeGeomFt !== undefined) upd.altitudeGeomFt = msg.altitudeGeomFt;
     if (msg.groundSpeedKt !== undefined) upd.groundSpeedKt = msg.groundSpeedKt;
     if (msg.trackDeg !== undefined) upd.trackDeg = msg.trackDeg;
     if (msg.verticalRateFpm !== undefined) upd.verticalRateFpm = msg.verticalRateFpm;
     if (msg.onGround !== undefined) upd.onGround = msg.onGround;
+    if (msg.nic !== undefined) upd.nic = msg.nic;
+    if (msg.rc !== undefined) upd.rc = msg.rc;
+    if (msg.posSource !== undefined) upd.posSource = msg.posSource;
+    if (rssi !== undefined) upd.rssi = rssi;
     this.store.upsert(upd);
   }
 
@@ -163,7 +169,7 @@ export class BeastFeeder extends FeederListener {
       const payload = data.subarray(7); // skip timestamp+signal
       this.framesTotal += 1;
       const msg = this.decoder.decode(payload);
-      if (msg) this.apply(msg, peer);
+      if (msg) this.apply(msg, peer, signalByteToRssi(data[6]));
       for (const sink of this.sinks) sink.broadcastFrame(payload, data.subarray(0, 6), data[6]);
       i = start + 2 + consumed;
     }
@@ -310,6 +316,12 @@ function numOr(v: string | undefined): number | undefined {
   if (!s) return undefined;
   const n = Number(s);
   return Number.isFinite(n) ? n : undefined;
+}
+
+/** Approximates dBFS from the Beast 8-bit AGC signal byte, dump1090-style: 20*log10(signal/255). */
+function signalByteToRssi(signal: number): number | undefined {
+  if (!signal) return undefined;
+  return Math.round(20 * Math.log10(signal / 255) * 10) / 10;
 }
 
 /**

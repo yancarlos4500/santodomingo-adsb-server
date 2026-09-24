@@ -3,14 +3,21 @@ import { EventEmitter } from "node:events";
 export interface AircraftUpdate {
   icao: string;
   callsign?: string;
+  category?: string;
   lat?: number;
   lon?: number;
   altitudeFt?: number;
+  altitudeGeomFt?: number;
   groundSpeedKt?: number;
   trackDeg?: number;
   verticalRateFpm?: number;
   squawk?: string;
   onGround?: boolean;
+  nic?: number;
+  rc?: number;
+  posSource?: "adsb_icao" | "tisb";
+  /** Approximate signal strength in dB, derived from the Beast signal byte when available. */
+  rssi?: number;
   /** Feeder id (e.g. remote address) that supplied the message. */
   source?: string;
 }
@@ -26,14 +33,20 @@ export interface Aircraft extends AircraftUpdate {
 export interface AircraftJson {
   icao: string;
   callsign?: string;
+  category?: string;
   lat?: number;
   lon?: number;
   altitudeFt?: number;
+  altitudeGeomFt?: number;
   groundSpeedKt?: number;
   trackDeg?: number;
   verticalRateFpm?: number;
   squawk?: string;
   onGround?: boolean;
+  nic?: number;
+  rc?: number;
+  posSource?: "adsb_icao" | "tisb";
+  rssi?: number;
   firstSeen: number;
   lastSeen: number;
   messages: number;
@@ -68,14 +81,20 @@ export class AircraftStore extends EventEmitter {
     }
 
     if (update.callsign !== undefined) ac.callsign = update.callsign;
+    if (update.category !== undefined) ac.category = update.category;
     if (update.lat !== undefined) ac.lat = update.lat;
     if (update.lon !== undefined) ac.lon = update.lon;
     if (update.altitudeFt !== undefined) ac.altitudeFt = update.altitudeFt;
+    if (update.altitudeGeomFt !== undefined) ac.altitudeGeomFt = update.altitudeGeomFt;
     if (update.groundSpeedKt !== undefined) ac.groundSpeedKt = update.groundSpeedKt;
     if (update.trackDeg !== undefined) ac.trackDeg = update.trackDeg;
     if (update.verticalRateFpm !== undefined) ac.verticalRateFpm = update.verticalRateFpm;
     if (update.squawk !== undefined) ac.squawk = update.squawk;
     if (update.onGround !== undefined) ac.onGround = update.onGround;
+    if (update.nic !== undefined) ac.nic = update.nic;
+    if (update.rc !== undefined) ac.rc = update.rc;
+    if (update.posSource !== undefined) ac.posSource = update.posSource;
+    if (update.rssi !== undefined) ac.rssi = update.rssi;
     if (update.source) ac.sources.add(update.source);
 
     ac.lastSeen = now;
@@ -107,14 +126,20 @@ export class AircraftStore extends EventEmitter {
       out.push({
         icao: ac.icao,
         callsign: ac.callsign,
+        category: ac.category,
         lat: ac.lat,
         lon: ac.lon,
         altitudeFt: ac.altitudeFt,
+        altitudeGeomFt: ac.altitudeGeomFt,
         groundSpeedKt: ac.groundSpeedKt,
         trackDeg: ac.trackDeg,
         verticalRateFpm: ac.verticalRateFpm,
         squawk: ac.squawk,
         onGround: ac.onGround,
+        nic: ac.nic,
+        rc: ac.rc,
+        posSource: ac.posSource,
+        rssi: ac.rssi,
         firstSeen: ac.firstSeen,
         lastSeen: ac.lastSeen,
         messages: ac.messages,

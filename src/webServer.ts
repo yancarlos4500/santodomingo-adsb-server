@@ -48,22 +48,28 @@ export function createWebServer(
       if (dst > dist) continue;
       ac.push({
         hex: a.icao,
+        type: a.posSource,
         flight: a.callsign,
-        lat: a.lat,
-        lon: a.lon,
+        category: a.category,
         alt_baro: a.onGround ? "ground" : a.altitudeFt ?? null,
+        alt_geom: a.altitudeGeomFt,
         gs: a.groundSpeedKt,
         track: a.trackDeg,
         baro_rate: a.verticalRateFpm,
         squawk: a.squawk,
+        lat: a.lat,
+        lon: a.lon,
+        nic: a.nic,
+        rc: a.rc,
         messages: a.messages,
         seen: Math.round((Date.now() - a.lastSeen) / 1000),
         seen_pos: Math.round((Date.now() - a.lastSeen) / 1000),
+        rssi: a.rssi,
         dst: Math.round(dst * 10) / 10,
         dir: Math.round(bearingDeg(lat, lon, a.lat, a.lon)),
       });
     }
-    res.json({ ac, total: ac.length, ctime: Date.now(), ptime: Date.now() - start });
+    res.json({ ac, msg: "No error", now: Date.now(), total: ac.length, ctime: Date.now(), ptime: Date.now() - start });
   });
 
   app.get("/api/stats", (_req, res) => {

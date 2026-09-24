@@ -71,7 +71,17 @@ Some platforms don't speak Beast at all — they poll an ADSBExchange/airplanes.
 curl "https://your-server.example.com/api/v3/lat/18.47/lon/-69.9/dist/250"
 ```
 
-Returns `{ "ac": [...], "total": N, "ctime": <ms>, "ptime": <ms> }`, where each `ac` entry includes `hex`, `flight`, `lat`, `lon`, `alt_baro`, `gs`, `track`, `baro_rate`, `squawk`, `dst` (nm from the query point), and `dir` (bearing in degrees).
+Returns `{ "ac": [...], "msg": "No error", "now": <ms>, "total": N, "ctime": <ms>, "ptime": <ms> }`, where each `ac` entry includes:
+
+- `hex`, `flight`, `category` (emitter category, e.g. `A3`)
+- `type` — position source: `adsb_icao` (DF17) or `tisb` (DF18, best-effort)
+- `lat`, `lon`, `alt_baro` (or `"ground"`), `alt_geom` (GNSS height, when reported instead of barometric)
+- `gs`, `track`, `baro_rate`, `squawk`
+- `nic`, `rc` — position integrity/containment radius (meters), derived from the ADS-B position type code
+- `messages`, `seen`, `seen_pos` (seconds), `rssi` (approximate dBFS, Beast-sourced only)
+- `dst` (nm from the query point), `dir` (bearing in degrees)
+
+> Note: fields that require a static aircraft registry (`r` registration, `t` type designator, `desc` description) aren't included — this server only outputs what it decodes from the RF messages themselves, no external database lookup.
 
 > Note: SBS-1-only feeders don't carry raw Mode-S frame bytes, so messages that arrive purely via the SBS port aren't re-broadcast on this output — only Beast- and raw-AVR-sourced traffic is.
 
