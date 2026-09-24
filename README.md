@@ -78,6 +78,7 @@ Returns `{ "ac": [...], "msg": "No error", "now": <ms>, "total": N, "ctime": <ms
 - `lat`, `lon`, `alt_baro` (or `"ground"`), `alt_geom` (GNSS height, when reported instead of barometric)
 - `gs`, `track`, `baro_rate`, `squawk`
 - `nic`, `rc` — position integrity/containment radius (meters), derived from the ADS-B position type code
+- `nav_qnh`, `nav_altitude_mcp`/`nav_altitude_fms`, `nav_heading` — pilot-selected altitude/pressure/heading, from the Target State and Status message (TC 29)
 - `messages`, `seen`, `seen_pos` (seconds), `rssi` (approximate dBFS, Beast-sourced only)
 - `dst` (nm from the query point), `dir` (bearing in degrees)
 

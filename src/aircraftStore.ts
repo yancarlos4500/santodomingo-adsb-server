@@ -18,6 +18,10 @@ export interface AircraftUpdate {
   posSource?: "adsb_icao" | "tisb";
   /** Approximate signal strength in dB, derived from the Beast signal byte when available. */
   rssi?: number;
+  navAltitudeMcpFt?: number;
+  navAltitudeFmsFt?: number;
+  navQnh?: number;
+  navHeadingDeg?: number;
   /** Feeder id (e.g. remote address) that supplied the message. */
   source?: string;
 }
@@ -47,6 +51,10 @@ export interface AircraftJson {
   rc?: number;
   posSource?: "adsb_icao" | "tisb";
   rssi?: number;
+  navAltitudeMcpFt?: number;
+  navAltitudeFmsFt?: number;
+  navQnh?: number;
+  navHeadingDeg?: number;
   firstSeen: number;
   lastSeen: number;
   messages: number;
@@ -95,6 +103,10 @@ export class AircraftStore extends EventEmitter {
     if (update.rc !== undefined) ac.rc = update.rc;
     if (update.posSource !== undefined) ac.posSource = update.posSource;
     if (update.rssi !== undefined) ac.rssi = update.rssi;
+    if (update.navAltitudeMcpFt !== undefined) ac.navAltitudeMcpFt = update.navAltitudeMcpFt;
+    if (update.navAltitudeFmsFt !== undefined) ac.navAltitudeFmsFt = update.navAltitudeFmsFt;
+    if (update.navQnh !== undefined) ac.navQnh = update.navQnh;
+    if (update.navHeadingDeg !== undefined) ac.navHeadingDeg = update.navHeadingDeg;
     if (update.source) ac.sources.add(update.source);
 
     ac.lastSeen = now;
@@ -140,6 +152,10 @@ export class AircraftStore extends EventEmitter {
         rc: ac.rc,
         posSource: ac.posSource,
         rssi: ac.rssi,
+        navAltitudeMcpFt: ac.navAltitudeMcpFt,
+        navAltitudeFmsFt: ac.navAltitudeFmsFt,
+        navQnh: ac.navQnh,
+        navHeadingDeg: ac.navHeadingDeg,
         firstSeen: ac.firstSeen,
         lastSeen: ac.lastSeen,
         messages: ac.messages,

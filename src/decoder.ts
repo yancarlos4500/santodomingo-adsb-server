@@ -41,6 +41,14 @@ export interface DecodedMessage {
   rc?: number;
   /** Best-effort position source: DF17 is always ICAO-addressed ADS-B; DF18 is typically TIS-B. */
   posSource?: "adsb_icao" | "tisb";
+  /** MCP/FCU selected altitude, from the Target State and Status message (TC 29). */
+  navAltitudeMcpFt?: number;
+  /** FMS selected altitude, from the Target State and Status message (TC 29). */
+  navAltitudeFmsFt?: number;
+  /** Selected barometric pressure setting (QNH), in hPa/mbar. */
+  navQnh?: number;
+  /** Selected heading, in degrees. */
+  navHeadingDeg?: number;
 }
 
 interface CprFrame {
@@ -126,6 +134,14 @@ export class ModeSDecoder {
         if (v.vrate !== undefined) msg.verticalRateFpm = v.vrate;
       }
       msg.onGround = false;
+    } else if (tc === 29) {
+      const ts = decodeTargetStateAndStatus(me);
+      if (ts.altitudeFt !== undefined) {
+        if (ts.altitudeSource === "FMS") msg.navAltitudeFmsFt = ts.altitudeFt;
+        else msg.navAltitudeMcpFt = ts.altitudeFt;
+      }
+      if (ts.qnh !== undefined) msg.navQnh = ts.qnh;
+      if (ts.headingDeg !== undefined) msg.navHeadingDeg = ts.headingDeg;
     }
 
     return msg;
@@ -246,6 +262,42 @@ function decodeAirborneVelocity(me: Buffer): AirborneVelocity | null {
   const vrate = vrRaw === 0 ? undefined : (vrSign === 0 ? 1 : -1) * (vrRaw - 1) * 64;
 
   return { speed: Math.round(speed), track: Math.round(track * 10) / 10, vrate };
+}
+
+interface TargetStateAndStatus {
+  altitudeFt?: number;
+  altitudeSource?: "MCP/FCU" | "FMS";
+  qnh?: number;
+  headingDeg?: number;
+}
+
+/**
+ * BDS 6,2 Target State and Status (TC=29): pilot-selected altitude/heading
+ * and barometric setting. Bit offsets per DO-260B \u00a72.2.3.2.7.1 (verified
+ * against pyModeS bds62), counted 0-55 from the MSB of the 56-bit ME field.
+ */
+function decodeTargetStateAndStatus(me: Buffer): TargetStateAndStatus {
+  let payload = 0n;
+  for (const b of me) payload = (payload << 8n) | BigInt(b);
+  const bits = (from: number, width: number): number =>
+    Number((payload >> BigInt(55 - (from + width - 1))) & ((1n << BigInt(width)) - 1n));
+
+  const out: TargetStateAndStatus = {};
+
+  const altRaw = bits(9, 11);
+  if (altRaw !== 0) {
+    out.altitudeFt = (altRaw - 1) * 32;
+    out.altitudeSource = bits(8, 1) === 1 ? "FMS" : "MCP/FCU";
+  }
+
+  const baroRaw = bits(20, 9);
+  if (baroRaw !== 0) out.qnh = Math.round((800 + (baroRaw - 1) * 0.8) * 10) / 10;
+
+  if (bits(29, 1) !== 0) {
+    out.headingDeg = Math.round(((bits(30, 9) * 360) / 512) * 10) / 10;
+  }
+
+  return out;
 }
 
 function decodeSurfaceVelocity(me: Buffer): { speed: number; track: number } | null {

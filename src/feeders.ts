@@ -98,6 +98,10 @@ abstract class FeederListener {
     if (msg.nic !== undefined) upd.nic = msg.nic;
     if (msg.rc !== undefined) upd.rc = msg.rc;
     if (msg.posSource !== undefined) upd.posSource = msg.posSource;
+    if (msg.navAltitudeMcpFt !== undefined) upd.navAltitudeMcpFt = msg.navAltitudeMcpFt;
+    if (msg.navAltitudeFmsFt !== undefined) upd.navAltitudeFmsFt = msg.navAltitudeFmsFt;
+    if (msg.navQnh !== undefined) upd.navQnh = msg.navQnh;
+    if (msg.navHeadingDeg !== undefined) upd.navHeadingDeg = msg.navHeadingDeg;
     if (rssi !== undefined) upd.rssi = rssi;
     this.store.upsert(upd);
   }
