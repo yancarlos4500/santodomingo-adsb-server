@@ -45,6 +45,25 @@ readsb --net-connector your-server,30005,beast_out
 
 Each connected feeder is tracked in `/api/stats` by remote address.
 
+## Feeding OUT to another aggregator (pull-based)
+
+Some aggregators (e.g. a partner ATC/tracking site) don't push data to you — instead they connect to your server and pull a live Beast stream, the same way dump1090's `net-ro-port` works. This server exposes that on its own port:
+
+- **Beast output**: `tcp://0.0.0.0:30006` (override with `ADSB_BEAST_OUT_PORT`)
+
+Every frame decoded from your Beast and raw-AVR feeders is re-encoded as Beast and fanned out to whoever connects here — no configuration needed on this server beyond exposing the port. Give the consumer your host and this port (on Railway, add a TCP Proxy for it just like the inbound ports below) and they connect as a client:
+
+```bash
+# What the consumer runs — pulls Beast frames from this server
+readsb --net-connector your-server.example.com,30006,beast_in
+# or just inspect the raw stream
+nc your-server.example.com 30006 | xxd | head
+```
+
+Connected consumers show up in `/api/stats` under `feeders.beastOut`, and the port is reported by `/api/feed-info` as `beastOut`.
+
+> Note: SBS-1-only feeders don't carry raw Mode-S frame bytes, so messages that arrive purely via the SBS port aren't re-broadcast on this output — only Beast- and raw-AVR-sourced traffic is.
+
 ## Feeding from adsb.im (or any readsb / Ultrafeeder)
 
 [adsb.im](https://adsb.im) ships Ultrafeeder (readsb) which can push Beast to arbitrary aggregators via its `net-connector` config.
@@ -80,6 +99,7 @@ Railway's public URL only serves HTTP. To let external feeders connect to Beast/
 | Beast       | `30005`        | 30005            |
 | Raw AVR     | `30002`        | 30002            |
 | SBS-1       | `30003`        | 30003            |
+| Beast out   | `30006`        | 30006            |
 
 Railway will give each proxy a public host + port such as `containers-us-west-XX.railway.app:12345`. Point your feeders at that host and port — the internal port stays 30005/30003/30002.
 
@@ -100,12 +120,14 @@ Environment variables (all optional):
 | `ADSB_BEAST_PORT`         | `30005`   | Beast binary feed port.                        |
 | `ADSB_RAW_PORT`           | `30002`   | Raw AVR feed port.                             |
 | `ADSB_SBS_PORT`           | `30003`   | SBS-1 BaseStation feed port.                   |
+| `ADSB_BEAST_OUT_PORT`     | `30006`   | Beast output port for pull-based consumers.    |
 | `ADSB_HTTP_PORT`          | `8080`    | Web UI + JSON + WebSocket port (fallback when `PORT` is unset). |
 | `ADSB_AIRCRAFT_TTL_MS`    | `60000`   | Drop aircraft that haven't been seen in this window. |
 | `ADSB_TICK_MS`            | `1000`    | Prune + broadcast interval.                    |
 | `ADSB_PUBLIC_BEAST`       | *(unset)* | Public `host:port` shown on `/feed` for Beast (e.g. Railway TCP proxy address). |
 | `ADSB_PUBLIC_RAW`         | *(unset)* | Public `host:port` shown on `/feed` for raw AVR. |
 | `ADSB_PUBLIC_SBS`         | *(unset)* | Public `host:port` shown on `/feed` for SBS-1. |
+| `ADSB_PUBLIC_BEAST_OUT`   | *(unset)* | Public `host:port` for the Beast output feed (given to pull-based consumers). |
 | `ADSB_SITE_NAME`          | *(unset)* | Friendly site name shown on `/feed` (e.g. `Santo Domingo ADS-B`). |
 
 ## Notes

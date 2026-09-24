@@ -3,13 +3,14 @@ import path from "node:path";
 import express from "express";
 import { WebSocketServer, WebSocket } from "ws";
 import { AircraftStore } from "./aircraftStore";
-import type { BeastFeeder, RawFeeder, SbsFeeder } from "./feeders";
+import type { BeastFeeder, RawFeeder, SbsFeeder, BeastOutServer } from "./feeders";
 import type { ServerConfig } from "./config";
 
 export interface FeederRefs {
   beast: BeastFeeder;
   raw: RawFeeder;
   sbs: SbsFeeder;
+  beastOut: BeastOutServer;
 }
 
 export function createWebServer(
@@ -37,6 +38,7 @@ export function createWebServer(
         beast: feeders.beast.stats(),
         raw: feeders.raw.stats(),
         sbs: feeders.sbs.stats(),
+        beastOut: feeders.beastOut.stats(),
       },
     });
   });
@@ -49,10 +51,12 @@ export function createWebServer(
       beast: config.publicBeast ?? null,
       raw: config.publicRaw ?? null,
       sbs: config.publicSbs ?? null,
+      beastOut: config.publicBeastOut ?? null,
       internal: {
         beastPort: config.beastPort,
         rawPort: config.rawPort,
         sbsPort: config.sbsPort,
+        beastOutPort: config.beastOutPort,
       },
     });
   });

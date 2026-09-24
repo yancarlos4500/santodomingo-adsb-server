@@ -19,6 +19,10 @@ export interface ServerConfig {
   publicRaw?: string;
   /** Optional public `host:port` shown on the /feed page for SBS feeders. */
   publicSbs?: string;
+  /** TCP port that streams live Beast frames out to pull-based consumers (e.g. aggregators). */
+  beastOutPort: number;
+  /** Optional public `host:port` for the Beast output feed, given to pull-based consumers. */
+  publicBeastOut?: string;
   /** Optional operator/site name to display on the /feed page. */
   siteName?: string;
   /** Optional receiver latitude, used to show distance/bearing to aircraft. */
@@ -71,11 +75,13 @@ export function loadConfig(): ServerConfig {
   const beastPort = resolveFeederPort("ADSB_BEAST_PORT", 30005);
   const rawPort = resolveFeederPort("ADSB_RAW_PORT", 30002);
   const sbsPort = resolveFeederPort("ADSB_SBS_PORT", 30003);
+  const beastOutPort = resolveFeederPort("ADSB_BEAST_OUT_PORT", 30006);
 
   return {
     beastPort,
     rawPort,
     sbsPort,
+    beastOutPort,
     httpPort,
     host: process.env.ADSB_HOST ?? "0.0.0.0",
     aircraftTtlMs: intFromEnv("ADSB_AIRCRAFT_TTL_MS", 60_000),
@@ -83,6 +89,7 @@ export function loadConfig(): ServerConfig {
     publicBeast: stringOrUndef("ADSB_PUBLIC_BEAST"),
     publicRaw: stringOrUndef("ADSB_PUBLIC_RAW"),
     publicSbs: stringOrUndef("ADSB_PUBLIC_SBS"),
+    publicBeastOut: stringOrUndef("ADSB_PUBLIC_BEAST_OUT"),
     siteName: stringOrUndef("ADSB_SITE_NAME"),
     siteLat: floatFromEnv("ADSB_SITE_LAT"),
     siteLon: floatFromEnv("ADSB_SITE_LON"),

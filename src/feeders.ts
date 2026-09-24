@@ -25,6 +25,8 @@ abstract class FeederListener {
     readonly name: string,
     protected readonly store: AircraftStore,
     protected readonly decoder: ModeSDecoder,
+    /** Optional output fan-out so inbound frames can be re-shared with pull-based consumers. */
+    protected readonly beastOut?: BeastOutServer,
   ) {
     this.server = net.createServer((socket) => this.handleSocket(socket));
   }
@@ -120,8 +122,8 @@ export class BeastFeeder extends FeederListener {
     0x33: 14, // Mode-S long
   };
 
-  constructor(store: AircraftStore, decoder: ModeSDecoder) {
-    super("beast", store, decoder);
+  constructor(store: AircraftStore, decoder: ModeSDecoder, beastOut?: BeastOutServer) {
+    super("beast", store, decoder, beastOut);
   }
 
   protected handleSocket(socket: net.Socket): void {
@@ -157,6 +159,7 @@ export class BeastFeeder extends FeederListener {
       this.framesTotal += 1;
       const msg = this.decoder.decode(payload);
       if (msg) this.apply(msg, peer);
+      this.beastOut?.broadcastFrame(payload, data.subarray(0, 6), data[6]);
       i = start + 2 + consumed;
     }
     return buf.subarray(i);
@@ -192,8 +195,8 @@ export class BeastFeeder extends FeederListener {
  * '@' (with a 12-hex-char MLAT timestamp prefix) and ends with ';'.
  */
 export class RawFeeder extends FeederListener {
-  constructor(store: AircraftStore, decoder: ModeSDecoder) {
-    super("raw", store, decoder);
+  constructor(store: AircraftStore, decoder: ModeSDecoder, beastOut?: BeastOutServer) {
+    super("raw", store, decoder, beastOut);
   }
 
   protected handleSocket(socket: net.Socket): void {
@@ -230,6 +233,7 @@ export class RawFeeder extends FeederListener {
     this.framesTotal += 1;
     const msg = this.decoder.decode(frame);
     if (msg) this.apply(msg, peer);
+    this.beastOut?.broadcastFrame(frame);
   }
 }
 
@@ -301,4 +305,102 @@ function numOr(v: string | undefined): number | undefined {
   if (!s) return undefined;
   const n = Number(s);
   return Number.isFinite(n) ? n : undefined;
+}
+
+/**
+ * Beast binary "output" server for pull-based consumers (aggregators that
+ * connect to us and expect a live Beast stream, mirroring dump1090's
+ * net-ro-port). Frames decoded from any inbound feeder are re-encoded and
+ * fanned out to every connected client here.
+ */
+export class BeastOutServer {
+  private readonly server: net.Server;
+  private readonly clients = new Set<net.Socket>();
+  private framesSent = 0;
+  private bytesSent = 0;
+
+  constructor(private readonly name = "beast-out") {
+    this.server = net.createServer((socket) => this.handleSocket(socket));
+  }
+
+  listen(port: number, host: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const onError = (err: Error) => reject(err);
+      this.server.once("error", onError);
+      this.server.listen(port, host, () => {
+        this.server.off("error", onError);
+        this.server.on("error", (err) =>
+          console.error(`[${this.name}] server error:`, err.message),
+        );
+        console.log(`[${this.name}] listening on ${host}:${port}`);
+        resolve();
+      });
+    });
+  }
+
+  stop(): Promise<void> {
+    for (const c of this.clients) c.destroy();
+    return new Promise((resolve) => this.server.close(() => resolve()));
+  }
+
+  stats(): FeederStats {
+    return {
+      connections: this.clients.size,
+      totalFrames: this.framesSent,
+      totalBytes: this.bytesSent,
+      peers: Array.from(this.clients).map(
+        (s) => `${s.remoteAddress ?? "?"}:${s.remotePort ?? 0}`,
+      ),
+    };
+  }
+
+  private handleSocket(socket: net.Socket): void {
+    const peer = `${socket.remoteAddress ?? "?"}:${socket.remotePort ?? 0}`;
+    this.clients.add(socket);
+    console.log(`[${this.name}] consumer connected: ${peer}`);
+    socket.setNoDelay(true);
+    socket.on("close", () => {
+      this.clients.delete(socket);
+      console.log(`[${this.name}] consumer disconnected: ${peer}`);
+    });
+    socket.on("error", (err) =>
+      console.warn(`[${this.name}] socket error ${peer}: ${err.message}`),
+    );
+    socket.resume(); // consumers only read; discard anything they send
+  }
+
+  /** Re-encode a raw 7/14-byte Mode-S frame as Beast and fan it out to every connected client. */
+  broadcastFrame(payload: Buffer, timestamp?: Buffer, signal = 0x00): void {
+    if (this.clients.size === 0) return;
+    if (payload.length !== 7 && payload.length !== 14) return;
+    const frame = encodeBeastFrame(payload, timestamp, signal);
+    this.framesSent += 1;
+    this.bytesSent += frame.length;
+    for (const client of this.clients) {
+      if (!client.destroyed) client.write(frame);
+    }
+  }
+}
+
+const BEAST_ESCAPE = 0x1a;
+
+function escapeBeastBytes(bytes: Buffer): Buffer {
+  let escapes = 0;
+  for (const b of bytes) if (b === BEAST_ESCAPE) escapes++;
+  if (escapes === 0) return bytes;
+  const out = Buffer.alloc(bytes.length + escapes);
+  let o = 0;
+  for (const b of bytes) {
+    out[o++] = b;
+    if (b === BEAST_ESCAPE) out[o++] = BEAST_ESCAPE;
+  }
+  return out;
+}
+
+/** timestamp defaults to all-zero (no real radio clock) when the source didn't provide one, e.g. raw AVR. */
+function encodeBeastFrame(payload: Buffer, timestamp: Buffer | undefined, signal: number): Buffer {
+  const type = payload.length === 14 ? 0x33 : 0x32;
+  const ts = timestamp && timestamp.length === 6 ? timestamp : Buffer.alloc(6);
+  const body = escapeBeastBytes(Buffer.concat([ts, Buffer.from([signal & 0xff]), payload]));
+  return Buffer.concat([Buffer.from([BEAST_ESCAPE, type]), body]);
 }
