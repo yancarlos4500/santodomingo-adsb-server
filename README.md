@@ -16,6 +16,7 @@ A self-hosted ADS-B aggregation server. Feeders (dump1090, readsb, PiAware, tar1
   - `GET /api/aircraft` — current tracked aircraft.
   - `GET /api/stats` — per-feeder connection and message counters.
   - `GET /api/feed-info` — the public endpoints shown on `/feed` (host:port strings from env).
+  - `GET /api/v3/lat/:lat/lon/:lon/dist/:dist` — ADSBExchange/airplanes.live-style pull API: aircraft within `dist` nautical miles of a point.
 
 ## Install & run
 
@@ -62,7 +63,29 @@ nc your-server.example.com 30006 | xxd | head
 
 Connected consumers show up in `/api/stats` under `feeders.beastOut`, and the port is reported by `/api/feed-info` as `beastOut`.
 
+### HTTP pull API (lat/lon/dist)
+
+Some platforms don't speak Beast at all — they poll an ADSBExchange/airplanes.live-style HTTP endpoint instead, e.g. `http://your-host/api/v3/lat/{lat}/lon/{lon}/dist/{nm}`. This server exposes that shape directly over its normal HTTP port (no extra TCP Proxy needed, just the existing public URL):
+
+```bash
+curl "https://your-server.example.com/api/v3/lat/18.47/lon/-69.9/dist/250"
+```
+
+Returns `{ "ac": [...], "total": N, "ctime": <ms>, "ptime": <ms> }`, where each `ac` entry includes `hex`, `flight`, `lat`, `lon`, `alt_baro`, `gs`, `track`, `baro_rate`, `squawk`, `dst` (nm from the query point), and `dir` (bearing in degrees).
+
 > Note: SBS-1-only feeders don't carry raw Mode-S frame bytes, so messages that arrive purely via the SBS port aren't re-broadcast on this output — only Beast- and raw-AVR-sourced traffic is.
+
+## Feeding OUT to another aggregator (push-based)
+
+Most aggregators (e.g. santodomingoatc) instead expose their own Beast *input* address and expect you to connect out to them, same as any other feeder. Set `ADSB_FEED_OUT_TARGETS` to a comma-separated list of `host:port` targets and this server will maintain a persistent outbound connection to each, pushing every frame decoded from your Beast and raw-AVR feeders (reconnecting with backoff if the link drops):
+
+```bash
+ADSB_FEED_OUT_TARGETS=hayabus.proxy.rlwy.net:11665
+# multiple targets:
+ADSB_FEED_OUT_TARGETS=host1:1234,host2:5678
+```
+
+Find the target's expected address from their own `/api/feed-info` endpoint (the `beast` field). Push status shows up in `/api/stats` under `pushTargets` (`connected`, `totalFrames`, `totalBytes` per target).
 
 ## Feeding from adsb.im (or any readsb / Ultrafeeder)
 
@@ -128,6 +151,7 @@ Environment variables (all optional):
 | `ADSB_PUBLIC_RAW`         | *(unset)* | Public `host:port` shown on `/feed` for raw AVR. |
 | `ADSB_PUBLIC_SBS`         | *(unset)* | Public `host:port` shown on `/feed` for SBS-1. |
 | `ADSB_PUBLIC_BEAST_OUT`   | *(unset)* | Public `host:port` for the Beast output feed (given to pull-based consumers). |
+| `ADSB_FEED_OUT_TARGETS`   | *(unset)* | Comma-separated `host:port` list of upstream aggregators to push our Beast stream to. |
 | `ADSB_SITE_NAME`          | *(unset)* | Friendly site name shown on `/feed` (e.g. `Santo Domingo ADS-B`). |
 
 ## Notes

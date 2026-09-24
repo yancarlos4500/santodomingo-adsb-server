@@ -3,7 +3,7 @@ import path from "node:path";
 import express from "express";
 import { WebSocketServer, WebSocket } from "ws";
 import { AircraftStore } from "./aircraftStore";
-import type { BeastFeeder, RawFeeder, SbsFeeder, BeastOutServer } from "./feeders";
+import type { BeastFeeder, RawFeeder, SbsFeeder, BeastOutServer, BeastPushClient } from "./feeders";
 import type { ServerConfig } from "./config";
 
 export interface FeederRefs {
@@ -11,6 +11,7 @@ export interface FeederRefs {
   raw: RawFeeder;
   sbs: SbsFeeder;
   beastOut: BeastOutServer;
+  pushClients: BeastPushClient[];
 }
 
 export function createWebServer(
@@ -30,6 +31,41 @@ export function createWebServer(
     res.json({ now: Date.now(), aircraft: store.snapshot() });
   });
 
+  // ADSBExchange/airplanes.live-style pull API: aircraft within `dist` nm of a point.
+  app.get("/api/v3/lat/:lat/lon/:lon/dist/:dist", (req, res) => {
+    const lat = Number.parseFloat(req.params.lat);
+    const lon = Number.parseFloat(req.params.lon);
+    const dist = Number.parseFloat(req.params.dist);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(dist)) {
+      res.status(400).json({ error: "lat, lon, and dist must be numbers" });
+      return;
+    }
+    const start = Date.now();
+    const ac = [];
+    for (const a of store.snapshot()) {
+      if (a.lat === undefined || a.lon === undefined) continue;
+      const dst = haversineNm(lat, lon, a.lat, a.lon);
+      if (dst > dist) continue;
+      ac.push({
+        hex: a.icao,
+        flight: a.callsign,
+        lat: a.lat,
+        lon: a.lon,
+        alt_baro: a.onGround ? "ground" : a.altitudeFt ?? null,
+        gs: a.groundSpeedKt,
+        track: a.trackDeg,
+        baro_rate: a.verticalRateFpm,
+        squawk: a.squawk,
+        messages: a.messages,
+        seen: Math.round((Date.now() - a.lastSeen) / 1000),
+        seen_pos: Math.round((Date.now() - a.lastSeen) / 1000),
+        dst: Math.round(dst * 10) / 10,
+        dir: Math.round(bearingDeg(lat, lon, a.lat, a.lon)),
+      });
+    }
+    res.json({ ac, total: ac.length, ctime: Date.now(), ptime: Date.now() - start });
+  });
+
   app.get("/api/stats", (_req, res) => {
     res.json({
       now: Date.now(),
@@ -40,6 +76,7 @@ export function createWebServer(
         sbs: feeders.sbs.stats(),
         beastOut: feeders.beastOut.stats(),
       },
+      pushTargets: feeders.pushClients.map((p) => p.stats()),
     });
   });
 
@@ -85,4 +122,25 @@ export function broadcastSnapshot(wss: WebSocketServer, store: AircraftStore) {
   for (const client of wss.clients) {
     if (client.readyState === WebSocket.OPEN) client.send(payload);
   }
+}
+
+const EARTH_RADIUS_NM = 3440.065;
+
+function haversineNm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * EARTH_RADIUS_NM * Math.asin(Math.sqrt(a));
+}
+
+function bearingDeg(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const y = Math.sin(toRad(lon2 - lon1)) * Math.cos(toRad(lat2));
+  const x =
+    Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
+    Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(toRad(lon2 - lon1));
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
 }

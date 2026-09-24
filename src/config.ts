@@ -23,6 +23,8 @@ export interface ServerConfig {
   beastOutPort: number;
   /** Optional public `host:port` for the Beast output feed, given to pull-based consumers. */
   publicBeastOut?: string;
+  /** Upstream aggregators to push our decoded Beast stream to (host,port pairs). */
+  pushTargets: Array<{ host: string; port: number }>;
   /** Optional operator/site name to display on the /feed page. */
   siteName?: string;
   /** Optional receiver latitude, used to show distance/bearing to aircraft. */
@@ -48,6 +50,30 @@ function floatFromEnv(name: string): number | undefined {
 function stringOrUndef(name: string): string | undefined {
   const v = process.env[name];
   return v && v.length > 0 ? v : undefined;
+}
+
+/** Parses a comma-separated "host:port,host:port" list, e.g. ADSB_FEED_OUT_TARGETS. */
+function pushTargetsFromEnv(name: string): Array<{ host: string; port: number }> {
+  const v = process.env[name];
+  if (!v) return [];
+  const targets: Array<{ host: string; port: number }> = [];
+  for (const entry of v.split(",")) {
+    const trimmed = entry.trim();
+    if (!trimmed) continue;
+    const idx = trimmed.lastIndexOf(":");
+    if (idx <= 0) {
+      console.error(`[config] ${name} entry "${trimmed}" is not "host:port"; skipping.`);
+      continue;
+    }
+    const host = trimmed.slice(0, idx);
+    const port = Number.parseInt(trimmed.slice(idx + 1), 10);
+    if (!Number.isFinite(port)) {
+      console.error(`[config] ${name} entry "${trimmed}" has an invalid port; skipping.`);
+      continue;
+    }
+    targets.push({ host, port });
+  }
+  return targets;
 }
 
 export function loadConfig(): ServerConfig {
@@ -90,6 +116,7 @@ export function loadConfig(): ServerConfig {
     publicRaw: stringOrUndef("ADSB_PUBLIC_RAW"),
     publicSbs: stringOrUndef("ADSB_PUBLIC_SBS"),
     publicBeastOut: stringOrUndef("ADSB_PUBLIC_BEAST_OUT"),
+    pushTargets: pushTargetsFromEnv("ADSB_FEED_OUT_TARGETS"),
     siteName: stringOrUndef("ADSB_SITE_NAME"),
     siteLat: floatFromEnv("ADSB_SITE_LAT"),
     siteLon: floatFromEnv("ADSB_SITE_LON"),

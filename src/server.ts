@@ -1,7 +1,7 @@
 import { loadConfig } from "./config";
 import { AircraftStore } from "./aircraftStore";
 import { ModeSDecoder } from "./decoder";
-import { BeastFeeder, RawFeeder, SbsFeeder, BeastOutServer } from "./feeders";
+import { BeastFeeder, RawFeeder, SbsFeeder, BeastOutServer, BeastPushClient, BeastSink } from "./feeders";
 import { broadcastSnapshot, createWebServer } from "./webServer";
 
 async function main() {
@@ -10,11 +10,13 @@ async function main() {
   const decoder = new ModeSDecoder();
 
   const beastOut = new BeastOutServer();
-  const beast = new BeastFeeder(store, decoder, beastOut);
-  const raw = new RawFeeder(store, decoder, beastOut);
+  const pushClients = cfg.pushTargets.map((t) => new BeastPushClient(t.host, t.port));
+  const sinks: BeastSink[] = [beastOut, ...pushClients];
+  const beast = new BeastFeeder(store, decoder, sinks);
+  const raw = new RawFeeder(store, decoder, sinks);
   const sbs = new SbsFeeder(store, decoder);
 
-  const { server, wss } = createWebServer(store, { beast, raw, sbs, beastOut }, cfg);
+  const { server, wss } = createWebServer(store, { beast, raw, sbs, beastOut, pushClients }, cfg);
 
   await Promise.all([
     beast.listen(cfg.beastPort, cfg.host),
@@ -45,6 +47,7 @@ async function main() {
     clearInterval(tick);
     wss.close();
     server.close();
+    for (const p of pushClients) p.stop();
     await Promise.allSettled([beast.stop(), raw.stop(), sbs.stop(), beastOut.stop()]);
     process.exit(0);
   };
@@ -57,6 +60,10 @@ async function main() {
   console.log(`         SBS-1 : tcp://${cfg.host}:${cfg.sbsPort}`);
   console.log(`[main] Pull-based consumers (e.g. an aggregator) can connect for Beast output at:`);
   console.log(`         Beast out : tcp://${cfg.host}:${cfg.beastOutPort}`);
+  if (pushClients.length) {
+    console.log("[main] Pushing our Beast stream out to:");
+    for (const t of cfg.pushTargets) console.log(`         ${t.host}:${t.port}`);
+  }
 }
 
 main().catch((err) => {
